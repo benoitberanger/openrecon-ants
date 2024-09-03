@@ -321,6 +321,10 @@ def main(args: argparse.Namespace):
             '# copy the .py module \n',
             f'COPY {os.path.relpath(target_data['path']['process'], cwd)}  /opt/code/python-ismrmrd-server \n',
             '\n'])
+        # fid.writelines([
+        #     '# ANTsPyX \n',
+        #     'RUN pip3 install antspyx',
+        #     '\n'])
         fid.writelines([
             '# new CMD line \n',
             f'{cmdline} \n',

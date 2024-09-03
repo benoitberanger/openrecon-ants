@@ -1,0 +1,72 @@
+{
+  "general": {
+    "name": { "en": "ANTs" },
+    "version": "1.0.0",
+    "vendor": "openrecon-ants",
+    "information": { "en": "Apply ANTs transformations, such as N4BiasFieldCorrection DenoiseImage" },
+    "id": "ANTs",
+      "regulatory_information":{
+        "device_trade_name":"ANTs",
+        "production_identifier":"1.0.0",
+        "manufacturer_address":"https://github.com/benoitberanger/openrecon-ants",
+        "made_in":"CENIR, ICM, Paris, France",
+        "manufacture_date":"2024-09-03",
+        "material_number":"ANTs_1.0.0",
+        "gtin":"",
+        "udi":"",
+        "safety_advices":"",
+        "special_operating_instructions":"",
+        "additional_relevant_information":""
+  }
+  },
+  "reconstruction": {
+    "transfer_protocol": {
+      "protocol": "ISMRMRD",
+      "version": "1.4.1"
+    },
+    "port": 9002,
+    "emitter": "image",
+    "injector": "image",
+    "can_process_adjustment_data": false,
+    "can_use_gpu": false,
+    "min_count_required_gpus": 0,
+    "min_required_gpu_memory": 2048,
+    "min_required_memory": 4096,
+    "min_count_required_cpu_cores": 1,
+    "content_qualification_type": "RESEARCH"
+  },
+  "parameters": [
+    {
+      "id": "ants_config",
+      "type": "choice",
+      "label": { "en": "ants_config" },
+      "values": [
+        {
+          "id": "N4BiasFieldCorrection",
+          "name": { "en": "N4BiasFieldCorrection" }
+        },
+        {
+          "id": "DenoiseImage",
+          "name": { "en": "DenoiseImage" }
+        },
+        {
+          "id": "N4BiasFieldCorrection_DenoiseImage",
+          "name": { "en": "N4BiasFieldCorrection + DenoiseImage" }
+        },
+        {
+          "id": "DenoiseImage_N4BiasFieldCorrection",
+          "name": { "en": "DenoiseImage + N4BiasFieldCorrection" }
+        }
+      ],
+      "default": "N4BiasFieldCorrection_DenoiseImage",
+      "information": { "en": "Define ANTs processing steps" }
+    },
+    {
+      "id": "SaveOriginalImages",
+      "label": { "en": "Save original images" },
+      "type": "boolean",
+      "information": { "en": "This option will send both original (no suffix) and processed images (with suffix)" },
+      "default": true
+    }
+  ]
+}
