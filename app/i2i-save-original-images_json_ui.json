@@ -1,0 +1,64 @@
+{
+  "general": {
+    "name": { "en": "i2i-save-original-images" },
+    "version": "1.0.0",
+    "vendor": "openrecon-template",
+    "information": { "en": "Invert contrast, with possibility to SaveOriginalImages" },
+    "id": "i2i-save-original-images",
+      "regulatory_information":{
+        "device_trade_name":"i2i-save-original-images",
+        "production_identifier":"1.0.0",
+        "manufacturer_address":"https://github.com/benoitberanger/openrecon-template",
+        "made_in":"TheInternet",
+        "manufacture_date":"2023-08-02",
+        "material_number":"i2i-save-original-images_1.0.0",
+        "gtin":"",
+        "udi":"",
+        "safety_advices":"",
+        "special_operating_instructions":"Modified version of the demo i2i, with an option to SaveOriginalImages",
+        "additional_relevant_information":""
+  }
+  },
+  "reconstruction": {
+    "transfer_protocol": {
+      "protocol": "ISMRMRD",
+      "version": "1.4.1"
+    },
+    "port": 9002,
+    "emitter": "image",
+    "injector": "image",
+    "can_process_adjustment_data": false,
+    "can_use_gpu": false,
+    "min_count_required_gpus": 0,
+    "min_required_gpu_memory": 2048,
+    "min_required_memory": 4096,
+    "min_count_required_cpu_cores": 1,
+    "content_qualification_type": "RESEARCH"
+  },
+  "parameters": [
+    {
+      "id": "config",
+      "type": "choice",
+      "label": { "en": "config" },
+      "values": [
+        {
+          "id": "i2i-save-original-images",
+          "name": { "en": "i2i-save-original-images" }
+        },
+        {
+          "id": "invertcontrast",
+          "name": { "en": "invertcontrast" }
+        }
+      ],
+      "default": "i2i-save-original-images",
+      "information": { "en": "Define the config to be executed by the MRD server" }
+    },
+    {
+      "id": "SaveOriginalImages",
+      "label": { "en": "Save original images" },
+      "type": "boolean",
+      "information": { "en": "This option will send both original (no suffix) and processed images (with suffix)" },
+      "default": true
+    }
+  ]
+}
