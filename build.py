@@ -323,8 +323,15 @@ def main(args: argparse.Namespace):
             '\n'])
         # fid.writelines([
         #     '# ANTsPyX \n',
-        #     'RUN pip3 install antspyx',
+        #     'RUN cd /opt/code && \\ \n',
+        #     'git clone https://github.com/antsx/antspy && \\ \n',
+        #     'cd antspy && \\ \n',
+        #     'python -m pip --no-cache-dir install . \n',
         #     '\n'])
+        fid.writelines([
+            '# ANTsPyX \n',
+            'RUN pip --no-cache-dir install antspyx \n',
+            '\n'])
         fid.writelines([
             '# new CMD line \n',
             f'{cmdline} \n',
@@ -375,7 +382,7 @@ if __name__ == '__main__':
         '--dirname',
         type    = dir_path,
         help    = 'Application directory name. ex: `demo-i2i`, `app`',
-        default = 'demo-i2i'
+        default = 'app'
     )
 
     args = parser.parse_args()

@@ -37,28 +37,28 @@
   },
   "parameters": [
     {
-      "id": "ants_config",
+      "id": "ANTsConfig",
       "type": "choice",
-      "label": { "en": "ants_config" },
+      "label": { "en": "ANTsConfig" },
       "values": [
         {
-          "id": "N4BiasFieldCorrection",
+          "id": "N4",
           "name": { "en": "N4BiasFieldCorrection" }
         },
         {
-          "id": "DenoiseImage",
+          "id": "Dn",
           "name": { "en": "DenoiseImage" }
         },
         {
-          "id": "N4BiasFieldCorrection_DenoiseImage",
+          "id": "N4Dn",
           "name": { "en": "N4BiasFieldCorrection + DenoiseImage" }
         },
         {
-          "id": "DenoiseImage_N4BiasFieldCorrection",
+          "id": "DnN4",
           "name": { "en": "DenoiseImage + N4BiasFieldCorrection" }
         }
       ],
-      "default": "N4BiasFieldCorrection_DenoiseImage",
+      "default": "N4Dn",
       "information": { "en": "Define ANTs processing steps" }
     },
     {

@@ -113,7 +113,7 @@ def process_image(images, connection, config, metadata):
     logging.debug("Processing data with %d images of type %s", len(images), ismrmrd.get_dtype_from_data_type(images[0].data_type))
 
     # OR parameter : Save Original Images
-    saveoriginalimages = False
+    saveoriginalimages = True
     if ('parameters' in config) and ('SaveOriginalImages' in config['parameters']):
         logging.debug(f"type of config['parameters']['SaveOriginalImages'] is {type(config['parameters']['SaveOriginalImages'])}")
 
@@ -129,19 +129,19 @@ def process_image(images, connection, config, metadata):
     else:
         logging.warning("config['parameters']['SaveOriginalImages'] NOT FOUND !!")
 
-    logging.debug(f'saveoriginalimages = {saveoriginalimages}')
+    logging.info(f'saveoriginalimages = {saveoriginalimages}')
 
     if saveoriginalimages:
         images_ORIG = images.copy()
 
     # OR parameter : Config
-    ants_config = 'N4BiasFieldCorrection_DenoiseImage'
+    ANTsConfig = 'N4Dn'
     if ('parameters' in config) and ('config' in config['parameters']):
-        ants_config =  config['parameters']['ants_config']
+        ANTsConfig =  config['parameters']['ANTsConfig']
     else:
-        logging.warning("config['parameters']['ants_config'] NOT FOUND !!")
+        logging.warning("config['parameters']['ANTsConfig'] NOT FOUND !!")
 
-    logging.debug(f'ants_config = {ants_config}')
+    logging.info(f'ANTsConfig = {ANTsConfig}')
 
     # Extract image data into a 5D array of size [img cha z y x]
     data = np.stack([img.data                              for img in images])
@@ -170,21 +170,21 @@ def process_image(images, connection, config, metadata):
     data_3d = get3Darray(data)
     ants_image_in = ants.from_numpy(data_3d)
 
-    if ants_config == 'N4BiasFieldCorrection':
+    if ANTsConfig == 'N4':
         ants_image_n4 = ants.n4_bias_field_correction(ants_image_in, verbose=True)
         info['ImageProcessingHistory'].append('ANTs::N4BiasFieldCorrection')
         info['SequenceDescriptionAdditional'] += 'ANTsN4BiasFieldCorrection'
         images_n4 = createMRDImage(ants_image_n4, head, meta, metadata, info)
         images_out += images_n4
 
-    elif ants_config == 'DenoiseImage':
-        ants_image_dn = ants.denoise_image(ants_image_in, v=1)
+    elif ANTsConfig == 'Dn':
+        ants_image_dn = ants.denoise_image(ants_image_in, v=1, r=2)
         info['ImageProcessingHistory'       ].append('ANTs::DenoiseImage')
         info['SequenceDescriptionAdditional'] += 'ANTsDenoiseImage'
         images_dn = createMRDImage(ants_image_dn, head, meta, metadata, info)
         images_out += images_dn
 
-    elif ants_config == 'N4BiasFieldCorrection_DenoiseImage':
+    elif ANTsConfig == 'N4Dn':
         ants_image_n4 = ants.n4_bias_field_correction(ants_image_in, verbose=True)
         info['ImageProcessingHistory'].append('ANTs::N4BiasFieldCorrection')
         info['SequenceDescriptionAdditional'] += 'ANTsN4BiasFieldCorrection'
@@ -192,14 +192,14 @@ def process_image(images, connection, config, metadata):
             images_n4 = createMRDImage(ants_image_n4, head, meta, metadata, info)
             images_out += images_n4
             info['image_series_index_offset'] += 1
-        ants_image_dn_n4 = ants.denoise_image(ants_image_n4, v=1)
+        ants_image_dn_n4 = ants.denoise_image(ants_image_n4, v=1, r=2)
         info['ImageProcessingHistory'].append('ANTs::DenoiseImage')
         info['SequenceDescriptionAdditional'] += '_ANTsDenoiseImage'
         images_dn_n4 = createMRDImage(ants_image_dn_n4, head, meta, metadata, info)
         images_out += images_dn_n4
 
-    elif ants_config == 'DenoiseImage_N4BiasFieldCorrection':
-        ants_image_dn = ants.denoise_image(ants_image_in, v=1)
+    elif ANTsConfig == 'DnN4':
+        ants_image_dn = ants.denoise_image(ants_image_in, v=1, r=2)
         info['ImageProcessingHistory'].append('ANTs::DenoiseImage')
         info['SequenceDescriptionAdditional'] += 'ANTsDenoiseImage'
         if saveoriginalimages:
