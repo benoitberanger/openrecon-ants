@@ -260,7 +260,7 @@ def createMRDImage(data_3d, head, meta, metadata, info):
         imagesOut[iImg].setHead(oldHeader)
 
         # Determine max value (12 or 16 bit)
-        BitsStored = 16
+        BitsStored = 12
         if (mrdhelper.get_userParameterLong_value(metadata, "BitsStored") is not None):
             BitsStored = mrdhelper.get_userParameterLong_value(metadata, "BitsStored")
         maxVal = 2**BitsStored - 1
@@ -274,12 +274,12 @@ def createMRDImage(data_3d, head, meta, metadata, info):
         tmpMeta['SequenceDescriptionAdditional']  = info['SequenceDescriptionAdditional']
         tmpMeta['Keep_image_geometry']            = 1
 
-        # Add image orientation directions to MetaAttributes if not already present
-        if tmpMeta.get('ImageRowDir') is None:
-            tmpMeta['ImageRowDir'] = ["{:.18f}".format(oldHeader.read_dir[0]), "{:.18f}".format(oldHeader.read_dir[1]), "{:.18f}".format(oldHeader.read_dir[2])]
+        # # Add image orientation directions to MetaAttributes if not already present
+        # if tmpMeta.get('ImageRowDir') is None:
+        #     tmpMeta['ImageRowDir'] = ["{:.18f}".format(oldHeader.read_dir[0]), "{:.18f}".format(oldHeader.read_dir[1]), "{:.18f}".format(oldHeader.read_dir[2])]
 
-        if tmpMeta.get('ImageColumnDir') is None:
-            tmpMeta['ImageColumnDir'] = ["{:.18f}".format(oldHeader.phase_dir[0]), "{:.18f}".format(oldHeader.phase_dir[1]), "{:.18f}".format(oldHeader.phase_dir[2])]
+        # if tmpMeta.get('ImageColumnDir') is None:
+        #     tmpMeta['ImageColumnDir'] = ["{:.18f}".format(oldHeader.phase_dir[0]), "{:.18f}".format(oldHeader.phase_dir[1]), "{:.18f}".format(oldHeader.phase_dir[2])]
 
         metaXml = tmpMeta.serialize()
         logging.debug("Image MetaAttributes: %s", xml.dom.minidom.parseString(metaXml).toprettyxml())
