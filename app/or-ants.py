@@ -131,9 +131,6 @@ def process_image(images, connection, config, metadata):
 
     logging.info(f'saveoriginalimages = {saveoriginalimages}')
 
-    if saveoriginalimages:
-        images_ORIG = images.copy()
-
     # OR parameter : Config
     ANTsConfig = 'N4Dn'
     if ('parameters' in config) and ('config' in config['parameters']):
@@ -162,53 +159,58 @@ def process_image(images, connection, config, metadata):
         'SequenceDescriptionAdditional': '',
     }
 
-    images_out = []
-    if saveoriginalimages:
-        images_out += images_ORIG
-        info['image_series_index_offset'] += 1
-
     data_3d = get3Darray(data)
     ants_image_in = ants.from_numpy(data_3d)
+    images_out = []
+
+    if saveoriginalimages:
+        images_ORIG = createMRDImage(ants_image_in, head, meta, metadata, info)
+        images_out += images_ORIG
+        info['image_series_index_offset'] += 1
 
     if ANTsConfig == 'N4':
         ants_image_n4 = ants.n4_bias_field_correction(ants_image_in, verbose=True)
         info['ImageProcessingHistory'].append('ANTs::N4BiasFieldCorrection')
-        info['SequenceDescriptionAdditional'] += 'ANTsN4BiasFieldCorrection'
+        if saveoriginalimages:
+            info['SequenceDescriptionAdditional'] += 'ANTsN4BiasFieldCorrection'
         images_n4 = createMRDImage(ants_image_n4, head, meta, metadata, info)
         images_out += images_n4
 
     elif ANTsConfig == 'Dn':
         ants_image_dn = ants.denoise_image(ants_image_in, v=1, r=2)
-        info['ImageProcessingHistory'       ].append('ANTs::DenoiseImage')
-        info['SequenceDescriptionAdditional'] += 'ANTsDenoiseImage'
+        info['ImageProcessingHistory'].append('ANTs::DenoiseImage')
+        if saveoriginalimages:
+            info['SequenceDescriptionAdditional'] += 'ANTsDenoiseImage'
         images_dn = createMRDImage(ants_image_dn, head, meta, metadata, info)
         images_out += images_dn
 
     elif ANTsConfig == 'N4Dn':
         ants_image_n4 = ants.n4_bias_field_correction(ants_image_in, verbose=True)
         info['ImageProcessingHistory'].append('ANTs::N4BiasFieldCorrection')
-        info['SequenceDescriptionAdditional'] += 'ANTsN4BiasFieldCorrection'
         if saveoriginalimages:
+            info['SequenceDescriptionAdditional'] += 'ANTsN4BiasFieldCorrection'
             images_n4 = createMRDImage(ants_image_n4, head, meta, metadata, info)
             images_out += images_n4
             info['image_series_index_offset'] += 1
         ants_image_dn_n4 = ants.denoise_image(ants_image_n4, v=1, r=2)
         info['ImageProcessingHistory'].append('ANTs::DenoiseImage')
-        info['SequenceDescriptionAdditional'] += '_ANTsDenoiseImage'
+        if saveoriginalimages:
+            info['SequenceDescriptionAdditional'] += '_ANTsDenoiseImage'
         images_dn_n4 = createMRDImage(ants_image_dn_n4, head, meta, metadata, info)
         images_out += images_dn_n4
 
     elif ANTsConfig == 'DnN4':
         ants_image_dn = ants.denoise_image(ants_image_in, v=1, r=2)
         info['ImageProcessingHistory'].append('ANTs::DenoiseImage')
-        info['SequenceDescriptionAdditional'] += 'ANTsDenoiseImage'
         if saveoriginalimages:
+            info['SequenceDescriptionAdditional'] += 'ANTsDenoiseImage'
             images_dn = createMRDImage(ants_image_dn, head, meta, metadata, info)
             images_out += images_dn
             info['image_series_index_offset'] += 1
         ants_image_n4_dn = ants.n4_bias_field_correction(ants_image_dn, verbose=True)
         info['ImageProcessingHistory'].append('ANTs::N4BiasFieldCorrection')
-        info['SequenceDescriptionAdditional'] += '_ANTsN4BiasFieldCorrection'
+        if saveoriginalimages:
+            info['SequenceDescriptionAdditional'] += '_ANTsN4BiasFieldCorrection'
         images_n4_dn = createMRDImage(ants_image_n4_dn, head, meta, metadata, info)
         images_out += images_n4_dn
 
@@ -231,14 +233,19 @@ def get3Darray(data) -> np.array:
     return data_3d
 
 
-def createMRDImage(data_3d, head, meta, metadata, info):
+def createMRDImage(ants_image, head, meta, metadata, info):
 
     # Reformat data from [y x img] to [y x z cha img]
-    data = data_3d.numpy()[:,:,np.newaxis,np.newaxis,:].astype(np.int16)
+    data = ants_image.numpy()[:,:,np.newaxis,np.newaxis,:].astype(np.int16)
 
     # Re-slice back into 2D images
     imagesOut = [None] * data.shape[-1]
     for iImg in range(data.shape[-1]):
+
+        # Create new MRD instance for the inverted image
+        # Transpose from convenience shape of [y x z cha] to MRD Image shape of [cha z y x]
+        # from_array() should be called with 'transpose=False' to avoid warnings, and when called
+        # with this option, can take input as: [cha z y x], [z y x], or [y x]
         imagesOut[iImg] = ismrmrd.Image.from_array(data[...,iImg].transpose((3, 2, 0, 1)), transpose=False)
 
         # Create a copy of the original fixed header and update the data_type
@@ -259,19 +266,21 @@ def createMRDImage(data_3d, head, meta, metadata, info):
 
         imagesOut[iImg].setHead(oldHeader)
 
-        # Determine max value (12 or 16 bit)
-        BitsStored = 12
-        if (mrdhelper.get_userParameterLong_value(metadata, "BitsStored") is not None):
-            BitsStored = mrdhelper.get_userParameterLong_value(metadata, "BitsStored")
-        maxVal = 2**BitsStored - 1
+        # # Determine max value (12 or 16 bit)
+        # BitsStored = 12
+        # if (mrdhelper.get_userParameterLong_value(metadata, "BitsStored") is not None):
+        #     BitsStored = mrdhelper.get_userParameterLong_value(metadata, "BitsStored")
+        # maxVal = 2**BitsStored - 1
 
         # Create a copy of the original ISMRMRD Meta attributes and update
         tmpMeta = meta[iImg]
         tmpMeta['DataRole']                       = 'Image'
-        tmpMeta['ImageProcessingHistory']         = info['ImageProcessingHistory']
-        tmpMeta['WindowCenter']                   = str((maxVal+1)/2)
-        tmpMeta['WindowWidth']                    = str((maxVal+1))
-        tmpMeta['SequenceDescriptionAdditional']  = info['SequenceDescriptionAdditional']
+        if len(info['ImageProcessingHistory']) > 0:
+            tmpMeta['ImageProcessingHistory']         = info['ImageProcessingHistory']
+        # tmpMeta['WindowCenter']                   = str((maxVal+1)/2)
+        # tmpMeta['WindowWidth']                    = str((maxVal+1))
+        if len(info['SequenceDescriptionAdditional']) > 0:
+            tmpMeta['SequenceDescriptionAdditional']  = info['SequenceDescriptionAdditional']
         tmpMeta['Keep_image_geometry']            = 1
 
         # # Add image orientation directions to MetaAttributes if not already present
