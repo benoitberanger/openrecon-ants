@@ -133,7 +133,7 @@ def process_image(images, connection, config, metadata):
 
     # OR parameter : Config
     ANTsConfig = 'N4Dn'
-    if ('parameters' in config) and ('config' in config['parameters']):
+    if ('parameters' in config) and ('ANTsConfig' in config['parameters']):
         ANTsConfig =  config['parameters']['ANTsConfig']
     else:
         logging.warning("config['parameters']['ANTsConfig'] NOT FOUND !!")
