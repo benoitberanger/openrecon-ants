@@ -321,16 +321,13 @@ def main(args: argparse.Namespace):
             '# copy the .py module \n',
             f'COPY {os.path.relpath(target_data['path']['process'], cwd)}  /opt/code/python-ismrmrd-server \n',
             '\n'])
-        # fid.writelines([
-        #     '# ANTsPyX \n',
-        #     'RUN cd /opt/code && \\ \n',
-        #     'git clone https://github.com/antsx/antspy && \\ \n',
-        #     'cd antspy && \\ \n',
-        #     'python -m pip --no-cache-dir install . \n',
-        #     '\n'])
         fid.writelines([
             '# ANTsPyX \n',
-            'RUN pip --no-cache-dir install antspyx \n',
+            'RUN apt-get update && apt-get install -y g++ cmake libpng-dev \n',
+            'RUN cd /opt/code && \\ \n',
+            '    git clone https://github.com/antsx/antspy && \\ \n',
+            '    cd antspy && \\ \n',
+            '    pip3 --no-cache-dir install . \n',
             '\n'])
         fid.writelines([
             '# new CMD line \n',
