@@ -2,7 +2,7 @@
   "general": {
     "name": { "en": "ANTs" },
     "version": "1.0.0",
-    "vendor": "openrecon-ants",
+    "vendor": "ICM",
     "information": { "en": "Apply ANTs transformations, such as N4BiasFieldCorrection DenoiseImage" },
     "id": "ANTs",
       "regulatory_information":{
