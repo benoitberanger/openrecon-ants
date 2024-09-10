@@ -355,7 +355,7 @@ def main(args: argparse.Namespace):
     # save everything in a ZIP file
     logger.info(f'(1/2) zip all files : {build_data['path']['zip']}')
     subprocess.run(['zip', build_data['name']['base']+'.zip', build_data['name']['base']+'.tar', build_data['name']['base']+'.pdf'], check=True, cwd=build_path)
-    logger.info(f'(1/2) zip all files DONE')
+    logger.info(f'(2/2) zip all files DONE')
 
     # END
     print_section('All done !')
