@@ -13,7 +13,6 @@ import pprint
 import sys
 import subprocess
 import re
-import datetime
 import json
 import base64
 
