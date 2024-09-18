@@ -1,17 +1,17 @@
 {
   "general": {
     "name": { "en": "ANTs" },
-    "version": "1.0.0",
+    "version": "1.1.0",
     "vendor": "ICM",
     "information": { "en": "Apply ANTs transformations, such as N4BiasFieldCorrection DenoiseImage" },
     "id": "ANTs",
       "regulatory_information":{
         "device_trade_name":"ANTs",
-        "production_identifier":"1.0.0",
+        "production_identifier":"1.1.0",
         "manufacturer_address":"https://github.com/benoitberanger/openrecon-ants",
         "made_in":"CENIR, ICM, Paris, France",
-        "manufacture_date":"2024-09-03",
-        "material_number":"ANTs_1.0.0",
+        "manufacture_date":"2024-09-16",
+        "material_number":"ANTs_1.1.0",
         "gtin":"",
         "udi":"",
         "safety_advices":"",
@@ -31,7 +31,7 @@
     "can_use_gpu": false,
     "min_count_required_gpus": 0,
     "min_required_gpu_memory": 2048,
-    "min_required_memory": 4096,
+    "min_required_memory": 32768,
     "min_count_required_cpu_cores": 1,
     "content_qualification_type": "RESEARCH"
   },
