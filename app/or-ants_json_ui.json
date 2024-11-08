@@ -58,7 +58,7 @@
           "name": { "en": "DenoiseImage + N4BiasFieldCorrection" }
         }
       ],
-      "default": "N4Dn",
+      "default": "DnN4",
       "information": { "en": "Define ANTs processing steps" }
     },
     {

@@ -132,7 +132,7 @@ def process_image(images, connection, config, metadata):
     logging.info(f'saveoriginalimages = {saveoriginalimages}')
 
     # OR parameter : Config
-    ANTsConfig = 'N4Dn'
+    ANTsConfig = 'DnN4'
     if ('parameters' in config) and ('ANTsConfig' in config['parameters']):
         ANTsConfig =  config['parameters']['ANTsConfig']
     else:
