@@ -1,17 +1,17 @@
 {
   "general": {
     "name": { "en": "ANTs" },
-    "version": "1.1.0",
+    "version": "2.0.0",
     "vendor": "ICM",
     "information": { "en": "Apply ANTs transformations, such as N4BiasFieldCorrection DenoiseImage" },
     "id": "ANTs",
       "regulatory_information":{
         "device_trade_name":"ANTs",
-        "production_identifier":"1.1.0",
+        "production_identifier":"2.0.0",
         "manufacturer_address":"https://github.com/benoitberanger/openrecon-ants",
         "made_in":"CENIR, ICM, Paris, France",
-        "manufacture_date":"2024-09-16",
-        "material_number":"ANTs_1.1.0",
+        "manufacture_date":"2024-11-08",
+        "material_number":"ANTs_2.0.0",
         "gtin":"",
         "udi":"",
         "safety_advices":"",
@@ -66,6 +66,13 @@
       "label": { "en": "Save original images" },
       "type": "boolean",
       "information": { "en": "This option will send both original (no suffix) and processed images (with suffix)" },
+      "default": true
+    },
+    {
+      "id": "ApplyInBrainMask",
+      "label": { "en": "Apply In Brain Mask" },
+      "type": "boolean",
+      "information": { "en": "Compute brain mask with Synthstrip and apply ANTs inside the mask." },
       "default": true
     }
   ]
