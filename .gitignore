@@ -3,6 +3,7 @@ python-ismrmrd-server/
 build/
 data/
 ExampleData/
+app/*.pt
 
 ########################################
 

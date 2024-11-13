@@ -15,6 +15,7 @@ import subprocess
 import re
 import json
 import base64
+import urllib
 
 
 def print_section(name: str) -> None:
@@ -235,6 +236,16 @@ def main(args: argparse.Namespace):
     print_section('BUILD')
     logger.warning('From now on, all steps will not have a "skip if already done" feature')
 
+    # download the DeepLearning weights
+    weights_name = 'synthstrip.1.pt'
+    weights_url = 'https://github.com/freesurfer/freesurfer/blob/dev/mri_synthstrip/synthstrip.1.pt'
+    weights_path = os.path.join(cwd, 'app', weights_name)
+    if os.path.exists(weights_path):
+        logger.info(f'Weigths `{weights_name}` in `app` dir : {weights_path}')
+    else:
+        logger.info(f'Download weigths `{weights_name}` in `app` dir : {weights_path}')
+        urllib.request.urlretrieve(weights_url, weights_path)
+
     # prep build dir
     build_path = os.path.join(cwd, 'build')
     if os.path.exists(build_path):
@@ -253,7 +264,7 @@ def main(args: argparse.Namespace):
             'process' : target_data['path']['process'].replace(target_path, build_path),
             'ui_json' : target_data['path']['ui_json'].replace(target_path, build_path),
             'schema'  : target_data['path']['schema' ].replace(target_path, build_path),
-            'pdf'     : ''
+            'pdf'     : '',
         }
     }
     pprint.pprint(build_data, sort_dicts=False)
@@ -261,9 +272,10 @@ def main(args: argparse.Namespace):
     # copy files in the `build` dir
     to_copy = [
         # [src dst]
-        [target_data['path']['process'], build_data['path']['process']],
-        [target_data['path']['ui_json'], build_data['path']['ui_json']],
-        [target_data['path']['schema' ], build_data['path']['schema' ]],
+        [target_data['path']['process'], build_data['path']['process']                ],
+        [target_data['path']['ui_json'], build_data['path']['ui_json']                ],
+        [target_data['path']['schema' ], build_data['path']['schema' ]                ],
+        [weights_path                  , weights_path.replace(target_path, build_path)],
     ]
     for src_dst in to_copy:
         logger.info(f'copy : SRC={src_dst[0]} DST={src_dst[1]}')
@@ -321,12 +333,20 @@ def main(args: argparse.Namespace):
             f'COPY {os.path.relpath(target_data['path']['process'], cwd)}  /opt/code/python-ismrmrd-server \n',
             '\n'])
         fid.writelines([
-            '# ANTsPyX \n',
-            'RUN apt-get update && apt-get install -y g++ cmake libpng-dev \n',
-            'RUN cd /opt/code && \\ \n',
-            '    git clone https://github.com/antsx/antspy && \\ \n',
-            '    cd antspy && \\ \n',
-            '    pip3 --no-cache-dir install . \n',
+            '# copy the .pt file (weights) \n',
+            f'COPY {os.path.relpath(weights_path, cwd)}  /opt/code/python-ismrmrd-server \n',
+            '\n'])
+        fid.writelines([
+            # '# ANTsPyX \n',
+            # 'RUN apt-get update && apt-get install -y g++ cmake libpng-dev \n',
+            # 'RUN cd /opt/code && \\ \n',
+            # '    git clone https://github.com/antsx/antspy && \\ \n',
+            # '    cd antspy && \\ \n',
+            # '    pip3 --no-cache-dir install . \n',
+            # '\n'])
+            '# Python modules \n',
+            'RUN apt-get update && apt-get install -y gcc \n',
+            'RUN pip3 --no-cache-dir install antspyx torch surfa \n',
             '\n'])
         fid.writelines([
             '# new CMD line \n',
