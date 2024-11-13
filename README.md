@@ -1,6 +1,7 @@
 # openrecon-ants
 
-[ANTs](https://github.com/ANTsX/ANTs) using [ANTsPy](https://github.com/ANTsX/ANTsPy) in OpenRecon.
+[ANTs](https://github.com/ANTsX/ANTs) using [ANTsPy](https://github.com/ANTsX/ANTsPy) in OpenRecon.  
+Brain masking is performed by [SynthStrip](https://surfer.nmr.mgh.harvard.edu/docs/synthstrip/)
 
 Based on https://github.com/benoitberanger/openrecon-template
 
@@ -9,11 +10,12 @@ Based on https://github.com/benoitberanger/openrecon-template
 This OR performs ANTs image operations : 
 - N4BiasFieldCorrection
 - DenoiseImage
-- N4BiasFieldCorrection + DenoiseImage
-- DenoiseImage + N4BiasFieldCorrection
+- N4BiasFieldCorrection then DenoiseImage (default)
+- DenoiseImage then N4BiasFieldCorrection
 
-There is an option, a checkbox, to **save original images** and intermediate images.
+There is an option, a checkbox, to **save original images** and intermediate images. (default is _True_)
 
+There is an option, a checkbox, to **apply in brainmask** using SynthStrip. (default is _True_)
 
 # Build
 
@@ -41,9 +43,11 @@ Python modules :
 - pydicom
 - pynetdicom
 - antspyx
+- torch
+- surfa
 
 ``` bash
-pip install ismrmrd pydicom pynetdicom antspyx
+pip install ismrmrd pydicom pynetdicom antspyx torch surfa
 ```
 Follow guidelines in https://github.com/benoitberanger/openrecon-template
 

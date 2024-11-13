@@ -10,7 +10,7 @@
         "production_identifier":"2.0.0",
         "manufacturer_address":"https://github.com/benoitberanger/openrecon-ants",
         "made_in":"CENIR, ICM, Paris, France",
-        "manufacture_date":"2024-11-08",
+        "manufacture_date":"2024-11-13",
         "material_number":"ANTs_2.0.0",
         "gtin":"",
         "udi":"",
@@ -58,7 +58,7 @@
           "name": { "en": "DenoiseImage + N4BiasFieldCorrection" }
         }
       ],
-      "default": "DnN4",
+      "default": "N4Dn",
       "information": { "en": "Define ANTs processing steps" }
     },
     {

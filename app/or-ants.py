@@ -157,7 +157,7 @@ def process_image(images, connection, config, metadata):
     logging.info(f'applyinbrainmask = {applyinbrainmask}')
 
     # OR parameter : ANTsConfig
-    ANTsConfig = 'DnN4'
+    ANTsConfig = 'N4Dn'
     if ('parameters' in config) and ('ANTsConfig' in config['parameters']):
         ANTsConfig =  config['parameters']['ANTsConfig']
     else:
@@ -182,36 +182,26 @@ def process_image(images, connection, config, metadata):
     if 'IceMiniHead' in meta[0]:
         logging.debug("IceMiniHead[0]: %s", base64.b64decode(meta[0]['IceMiniHead']).decode('utf-8'))
 
-    info = {
-        'image_series_index_offset': 0,
-        'ImageProcessingHistory': [],
-        'SequenceDescriptionAdditional': '',
-    }
-
+    # Diagnostic info
     dicomDset = pydicom.dataset.Dataset.from_json(base64.b64decode(meta[0]['DicomJson']))
     ImageOrientationPatient = np.array(dicomDset.ImageOrientationPatient)
-    logging.info(f'ImageOrientationPatient : {ImageOrientationPatient}')
-
-    matrix = np.array(head[0].matrix_size[:]) 
-    fov    = np.array(head[0].field_of_view[:])
+    matrix    = np.array(head[0].matrix_size  [:]) 
+    fov       = np.array(head[0].field_of_view[:])
     voxelsize = fov/matrix
-    logging.info(f'MRD computed maxtrix [x y z] : {matrix   }')
-    logging.info(f'MRD computed fov     [x y z] : {fov      }')
-    logging.info(f'MRD computed voxel   [x y z] : {voxelsize}')
-
     read_dir  = np.array(images[0].read_dir )
     phase_dir = np.array(images[0].phase_dir)
     slice_dir = np.array(images[0].slice_dir)
-    logging.info(f'MRD read_dir  [x y z] : {read_dir }')
-    logging.info(f'MRD phase_dir [x y z] : {phase_dir}')
-    logging.info(f'MRD slice_dir [x y z] : {slice_dir}')
+    logging.info(f'ImageOrientationPatient : {ImageOrientationPatient}')
+    logging.info(f'MRD computed maxtrix [x y z] : {matrix   }')
+    logging.info(f'MRD computed fov     [x y z] : {fov      }')
+    logging.info(f'MRD computed voxel   [x y z] : {voxelsize}')
+    logging.info(f'MRD read_dir         [x y z] : {read_dir }')
+    logging.info(f'MRD phase_dir        [x y z] : {phase_dir}')
+    logging.info(f'MRD slice_dir        [x y z] : {slice_dir}')
 
     if applyinbrainmask:
 
-        # affine = compute_nifti_affine(fov, matrix, direction_cosines)
-        # affine = np.diag([*voxelsize,  1])
-        affine = compute_nifti_affine(images[0] ,matrix, fov) # this is the good one !!!
-        # affine = compute_nifti_affine_from_dicom(meta[0])
+        affine = compute_nifti_affine(images[0], voxelsize)
 
         # synthstrip
         logging.info(f'Affine for Synthstrip masking :')
@@ -220,7 +210,6 @@ def process_image(images, connection, config, metadata):
         data_xyi = data_iyx.transpose((2,1,0)) # [img y x] -> [x y img]
         logging.info(f'Shape of Synthstrip input : {data_xyi.shape}')
         brainmask = synthstrip(data_xyi, voxelsize, affine)
-        logging.info(f'Shape of Synthstrip output : {brainmask.shape}')
         brainmask = brainmask.transpose((1,0,2)) # [x y img] -> [y x img]
         logging.info(f'Shape of mask (before ANTs) : {brainmask.shape}')
         # !!! ants N4 has a weird conversion==unstable mask system
@@ -231,6 +220,12 @@ def process_image(images, connection, config, metadata):
     logging.info(f'ANTs input data shape : {data_3d.shape}')
     ants_image_in = ants.from_numpy(data_3d)
     images_out = []
+
+    info = {
+        'image_series_index_offset': 0,
+        'ImageProcessingHistory': [],
+        'SequenceDescriptionAdditional': '',
+    }
     
     if saveoriginalimages:
         images_ORIG = createMRDImage(ants_image_in, head, meta, metadata, info)
@@ -238,18 +233,18 @@ def process_image(images, connection, config, metadata):
         info['image_series_index_offset'] += 1
         if applyinbrainmask:
             info['ImageProcessingHistory'].append('SynthstripMask')
+            info['SequenceDescriptionAdditional'] += 'Masked_'
             images_mask = createMRDImage(ants_mask, head, meta, metadata, info)
             images_out += images_mask
             info['image_series_index_offset'] += 1
-            info['SequenceDescriptionAdditional'] += 'Masked_'
 
     if ANTsConfig == 'N4':
         if applyinbrainmask:
             ants_image_n4 = ants.n4_bias_field_correction(ants_image_in, verbose=True, mask=ants_mask)
-            info['ImageProcessingHistory'].append('ANTs::N4BiasFieldCorrection@SynthstripMask')
+            info['ImageProcessingHistory'].append('ANTsN4BiasFieldCorrection@SynthstripMask')
         else:
             ants_image_n4 = ants.n4_bias_field_correction(ants_image_in, verbose=True)
-            info['ImageProcessingHistory'].append('ANTs::N4BiasFieldCorrection')
+            info['ImageProcessingHistory'].append('ANTsN4BiasFieldCorrection')
         if saveoriginalimages:
             info['SequenceDescriptionAdditional'] += 'N4'
         images_n4 = createMRDImage(ants_image_n4, head, meta, metadata, info)
@@ -257,11 +252,11 @@ def process_image(images, connection, config, metadata):
 
     elif ANTsConfig == 'Dn':
         if applyinbrainmask:
-            ants_image_dn = ants.denoise_image(ants_image_in, v=1, r=2, mask=ants_mask)
-            info['ImageProcessingHistory'].append('ANTs::DenoiseImage@SynthstripMask')
+            ants_image_dn = ants.denoise_image(ants_image_in, v=1, mask=ants_mask)
+            info['ImageProcessingHistory'].append('ANTsDenoiseImage@SynthstripMask')
         else:
-            ants_image_dn = ants.denoise_image(ants_image_in, v=1, r=2)
-            info['ImageProcessingHistory'].append('ANTs::DenoiseImage')
+            ants_image_dn = ants.denoise_image(ants_image_in, v=1)
+            info['ImageProcessingHistory'].append('ANTsDenoiseImage')
         if saveoriginalimages:
             info['SequenceDescriptionAdditional'] += 'Dn'
         images_dn = createMRDImage(ants_image_dn, head, meta, metadata, info)
@@ -270,47 +265,47 @@ def process_image(images, connection, config, metadata):
     elif ANTsConfig == 'N4Dn':
         if applyinbrainmask:
             ants_image_n4 = ants.n4_bias_field_correction(ants_image_in, verbose=True, mask=ants_mask)
-            info['ImageProcessingHistory'].append('ANTs::N4BiasFieldCorrection@SynthstripMask')
+            info['ImageProcessingHistory'].append('ANTsN4BiasFieldCorrection@SynthstripMask')
         else:
             ants_image_n4 = ants.n4_bias_field_correction(ants_image_in, verbose=True)
-            info['ImageProcessingHistory'].append('ANTs::N4BiasFieldCorrection')
+            info['ImageProcessingHistory'].append('ANTsN4BiasFieldCorrection')
         if saveoriginalimages:
             info['SequenceDescriptionAdditional'] += 'N4'
             images_n4 = createMRDImage(ants_image_n4, head, meta, metadata, info)
             images_out += images_n4
             info['image_series_index_offset'] += 1
         if applyinbrainmask:
-            ants_image_dn_n4 = ants.denoise_image(ants_image_n4, v=1, r=2, mask=ants_mask)
-            info['ImageProcessingHistory'].append('ANTs::DenoiseImage@SynthstripMask')
+            ants_image_n4_dn = ants.denoise_image(ants_image_n4, v=1, mask=ants_mask)
+            info['ImageProcessingHistory'].append('ANTsDenoiseImage@SynthstripMask')
         else:
-            ants_image_dn_n4 = ants.denoise_image(ants_image_n4, v=1, r=2)
-            info['ImageProcessingHistory'].append('ANTs::DenoiseImage')
+            ants_image_n4_dn = ants.denoise_image(ants_image_n4, v=1)
+            info['ImageProcessingHistory'].append('ANTsDenoiseImage')
         if saveoriginalimages:
             info['SequenceDescriptionAdditional'] += '_Dn'
-        images_dn_n4 = createMRDImage(ants_image_dn_n4, head, meta, metadata, info)
+        images_dn_n4 = createMRDImage(ants_image_n4_dn, head, meta, metadata, info)
         images_out += images_dn_n4
 
     elif ANTsConfig == 'DnN4':
         if applyinbrainmask:
-            ants_image_dn = ants.denoise_image(ants_image_in, v=1, r=2, mask=ants_mask)
-            info['ImageProcessingHistory'].append('ANTs::DenoiseImage@SynthstripMask')
+            ants_image_dn = ants.denoise_image(ants_image_in, v=1, mask=ants_mask)
+            info['ImageProcessingHistory'].append('ANTsDenoiseImage@SynthstripMask')
         else:
-            ants_image_dn = ants.denoise_image(ants_image_in, v=1, r=2)
-            info['ImageProcessingHistory'].append('ANTs::DenoiseImage')
+            ants_image_dn = ants.denoise_image(ants_image_in, v=1)
+            info['ImageProcessingHistory'].append('ANTsDenoiseImage')
         if saveoriginalimages:
             info['SequenceDescriptionAdditional'] += 'Dn'
             images_dn = createMRDImage(ants_image_dn, head, meta, metadata, info)
             images_out += images_dn
             info['image_series_index_offset'] += 1
         if applyinbrainmask:
-            ants_image_n4_dn = ants.n4_bias_field_correction(ants_image_dn, verbose=True, mask=ants_mask)
-            info['ImageProcessingHistory'].append('ANTs::N4BiasFieldCorrection@SynthstripMask')
+            ants_image_dn_n4 = ants.n4_bias_field_correction(ants_image_dn, verbose=True, mask=ants_mask)
+            info['ImageProcessingHistory'].append('ANTsN4BiasFieldCorrection@SynthstripMask')
         else:
-            ants_image_n4_dn = ants.n4_bias_field_correction(ants_image_dn, verbose=True)
-            info['ImageProcessingHistory'].append('ANTs::N4BiasFieldCorrection')
+            ants_image_dn_n4 = ants.n4_bias_field_correction(ants_image_dn, verbose=True)
+            info['ImageProcessingHistory'].append('ANTsN4BiasFieldCorrection')
         if saveoriginalimages:
             info['SequenceDescriptionAdditional'] += '_N4'
-        images_n4_dn = createMRDImage(ants_image_n4_dn, head, meta, metadata, info)
+        images_n4_dn = createMRDImage(ants_image_dn_n4, head, meta, metadata, info)
         images_out += images_n4_dn
 
     return images_out
@@ -404,7 +399,7 @@ def synthstrip(data, voxelsize, affine):
 
     os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
     device = torch.device('cpu')
-    device_name = 'CPU'
+    device_name = 'CPU' # force CPU usage, disable GPU
 
     def extend_sdt(sdt, border=1):
         """Extend SynthStrip's narrow-band signed distance transform (SDT).
@@ -636,44 +631,23 @@ def synthstrip(data, voxelsize, affine):
 
     return mask.data
 
-# def compute_nifti_affine(fov, matrix_size, direction_cosines, offset=[0, 0, 0]):
-#     voxel_size = [fov[i] / matrix_size[i] for i in range(3)]
-    
-#     # Scale direction cosines by voxel size
-#     rotation_scaling_matrix = np.array([
-#         [voxel_size[0] * direction_cosines['readout'][i] for i in range(3)],
-#         [voxel_size[1] * direction_cosines['phase'][i] for i in range(3)],
-#         [voxel_size[2] * direction_cosines['slice'][i] for i in range(3)]
-#     ])
-    
-#     # Build affine matrix
-#     affine = np.eye(4)
-#     affine[:3, :3] = rotation_scaling_matrix
-#     affine[:3, 3] = offset
-    
-#     return affine
+def compute_nifti_affine(image_header, voxel_size):
 
-def compute_nifti_affine(image_header, matrix_size, field_of_view):
     # Extract necessary fields
-    # matrix_size   = image_header['matrix_size']        # [nx, ny, nz]
-    # field_of_view = image_header['field_of_view']      # [fov_x, fov_y, fov_z]
-    position      = image_header.position           # [px, py, pz]
-    read_dir      = image_header.read_dir          # [rx, ry, rz]
-    phase_dir     = image_header.phase_dir          # [px, py, pz]
-    slice_dir     = image_header.slice_dir          # [sx, sy, sz]
+    position      = image_header.position
+    read_dir      = image_header.read_dir
+    phase_dir     = image_header.phase_dir
+    slice_dir     = image_header.slice_dir 
 
     # Convert from LPS to RAS
-    position_ras = [-position[0], -position[1], position[2]]
-    read_dir_ras = [-read_dir[0], -read_dir[1], read_dir[2]]
+    position_ras  = [ -position[0],  -position[1],  position[2]]
+    read_dir_ras  = [ -read_dir[0],  -read_dir[1],  read_dir[2]]
     phase_dir_ras = [-phase_dir[0], -phase_dir[1], phase_dir[2]]
     slice_dir_ras = [-slice_dir[0], -slice_dir[1], slice_dir[2]]
 
-    # Compute voxel size
-    voxel_size = field_of_view / matrix_size
-    
     # Construct rotation-scaling matrix
     rotation_scaling_matrix = np.column_stack([
-        voxel_size[0] * np.array(read_dir_ras),
+        voxel_size[0] * np.array( read_dir_ras),
         voxel_size[1] * np.array(phase_dir_ras),
         voxel_size[2] * np.array(slice_dir_ras)
     ])
@@ -681,92 +655,6 @@ def compute_nifti_affine(image_header, matrix_size, field_of_view):
     # Construct affine matrix
     affine = np.eye(4)
     affine[:3, :3] = rotation_scaling_matrix
-    affine[:3, 3] = position_ras  # Set translation
-    
-    # # Construct rotation-scaling matrix
-    # rotation_scaling_matrix = np.column_stack([
-    #     voxel_size[0] * np.array(read_dir),
-    #     voxel_size[1] * np.array(phase_dir),
-    #     voxel_size[2] * np.array(slice_dir)
-    # ])
-    
-    # # Construct affine matrix
-    # affine = np.eye(4)
-    # affine[:3, :3] = rotation_scaling_matrix
-    # affine[:3, 3] = position  # Set translation
+    affine[:3,  3] = position_ras
     
     return affine
-
-def compute_nifti_affine_from_meta(image_header, meta_attributes):
-    matrix_size   = np.array([meta_attributes.encoding[0].reconSpace.matrixSize    .x, meta_attributes.encoding[0].reconSpace.matrixSize    .y, meta_attributes.encoding[0].reconSpace.matrixSize    .z])
-    field_of_view = np.array([meta_attributes.encoding[0].reconSpace.fieldOfView_mm.x, meta_attributes.encoding[0].reconSpace.fieldOfView_mm.y, meta_attributes.encoding[0].reconSpace.fieldOfView_mm.z])
-    
-    dicomDset = pydicom.dataset.Dataset.from_json(base64.b64decode(meta[0]['DicomJson']))
-    
-    # Extract necessary fields from the MRD Image Header
-    position_lps = image_header.position            # [px, py, pz] in LPS
-    read_dir_lps = meta_attributes.ImageRowDir      # [rx, ry, rz]
-    phase_dir_lps = meta_attributes.ImageColumnDir  # [px, py, pz]
-    
-    # Compute slice_dir as cross-product of read_dir and phase_dir
-    slice_dir_lps = np.cross(read_dir_lps, phase_dir_lps)
-    
-    # Convert position and directions from LPS to RAS
-    position_ras = [-position_lps[0], -position_lps[1], position_lps[2]]
-    read_dir_ras = [-read_dir_lps[0], -read_dir_lps[1], read_dir_lps[2]]
-    phase_dir_ras = [-phase_dir_lps[0], -phase_dir_lps[1], phase_dir_lps[2]]
-    slice_dir_ras = [-slice_dir_lps[0], -slice_dir_lps[1], slice_dir_lps[2]]
-    
-    # Compute voxel sizes
-    voxel_size = [fov / size for fov, size in zip(field_of_view, matrix_size)]
-    
-    # Construct rotation-scaling matrix in RAS coordinates
-    rotation_scaling_matrix = np.column_stack([
-        voxel_size[0] * np.array(read_dir_ras),
-        voxel_size[1] * np.array(phase_dir_ras),
-        voxel_size[2] * np.array(slice_dir_ras)
-    ])
-    
-    # Construct affine matrix
-    affine = np.eye(4)
-    affine[:3, :3] = rotation_scaling_matrix
-    affine[:3, 3] = position_ras  # Set translation in RAS coordinates
-    
-    return affine
-
-def compute_nifti_affine_from_dicom(meta):
-
-    dicomDset = pydicom.dataset.Dataset.from_json(base64.b64decode(meta['DicomJson']))
-    
-    # Extract row and column direction cosines from ImageOrientationPatient
-    row_cosine = np.array(dicomDset.ImageOrientationPatient[:3])      # First 3 values
-    column_cosine = np.array(dicomDset.ImageOrientationPatient[3:])   # Last 3 values
-    
-    # Compute slice direction as the cross product of row and column cosines
-    slice_cosine = np.cross(row_cosine, column_cosine)
-    
-    # Compute voxel size scaling for each direction
-    voxel_size_x, voxel_size_y = np.array(dicomDset.PixelSpacing)
-    voxel_size_z = dicomDset.SliceThickness
-    
-    # Scale the directional cosines by the voxel sizes
-    row_cosine_scaled = row_cosine * voxel_size_x
-    column_cosine_scaled = column_cosine * voxel_size_y
-    slice_cosine_scaled = slice_cosine * voxel_size_z
-    
-    # Create rotation-scaling matrix
-    rotation_scaling_matrix = np.column_stack([row_cosine_scaled, column_cosine_scaled, slice_cosine_scaled])
-    
-    # Construct the full affine matrix in LPS
-    lps_affine = np.eye(4)
-    lps_affine[:3, :3] = rotation_scaling_matrix
-    lps_affine[:3, 3] = dicomDset.ImagePositionPatient # Translation component
-    
-    # LPS to RAS transformation matrix
-    # lps_to_ras = np.diag([-1, -1, 1, 1])
-    lps_to_ras = np.diag([1, 1, 1, 1])
-    
-    # Convert the LPS affine to RAS affine
-    ras_affine = lps_to_ras @ lps_affine
-
-    return ras_affine
