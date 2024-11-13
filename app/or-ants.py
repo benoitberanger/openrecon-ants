@@ -585,6 +585,7 @@ def synthstrip(data, voxelsize, affine):
     print(f'Running SynthStrip model version {version}')
 
     modelfile = os.path.join(os.path.dirname(os.path.realpath(__file__)), f'synthstrip.{version}.pt')
+    print(f'modelfile={modelfile}')
     checkpoint = torch.load(modelfile, map_location=device)
     model.load_state_dict(checkpoint['model_state_dict'])
 

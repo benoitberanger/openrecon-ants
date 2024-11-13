@@ -238,7 +238,7 @@ def main(args: argparse.Namespace):
 
     # download the DeepLearning weights
     weights_name = 'synthstrip.1.pt'
-    weights_url = 'https://github.com/freesurfer/freesurfer/blob/dev/mri_synthstrip/synthstrip.1.pt'
+    weights_url = 'https://surfer.nmr.mgh.harvard.edu/docs/synthstrip/requirements/synthstrip.1.pt'
     weights_path = os.path.join(cwd, 'app', weights_name)
     if os.path.exists(weights_path):
         logger.info(f'Weigths `{weights_name}` in `app` dir : {weights_path}')
@@ -337,13 +337,6 @@ def main(args: argparse.Namespace):
             f'COPY {os.path.relpath(weights_path, cwd)}  /opt/code/python-ismrmrd-server \n',
             '\n'])
         fid.writelines([
-            # '# ANTsPyX \n',
-            # 'RUN apt-get update && apt-get install -y g++ cmake libpng-dev \n',
-            # 'RUN cd /opt/code && \\ \n',
-            # '    git clone https://github.com/antsx/antspy && \\ \n',
-            # '    cd antspy && \\ \n',
-            # '    pip3 --no-cache-dir install . \n',
-            # '\n'])
             '# Python modules \n',
             'RUN apt-get update && apt-get install -y gcc \n',
             'RUN pip3 --no-cache-dir install antspyx torch surfa \n',
