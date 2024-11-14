@@ -266,7 +266,7 @@ def process_image(images, connection, config, metadata):
             else:
                 ants_image_n4 = ants.n4_bias_field_correction(ants_image_in, verbose=True)
                 info['ImageProcessingHistory'].append('ANTsN4BiasFieldCorrection')
-            info['SequenceDescriptionAdditional'] += '_N4'
+            info['SequenceDescriptionAdditional'] += 'N4'
             images_n4 = createMRDImage(ants_image_n4, head, meta, metadata, info)
             images_out += images_n4
             info['image_series_index_offset'] += 1
@@ -287,7 +287,7 @@ def process_image(images, connection, config, metadata):
             else:
                 ants_image_dn = ants.denoise_image(ants_image_in, v=1)
                 info['ImageProcessingHistory'].append('ANTsDenoiseImage')
-            info['SequenceDescriptionAdditional'] += '_Dn'
+            info['SequenceDescriptionAdditional'] += 'Dn'
             images_dn = createMRDImage(ants_image_dn, head, meta, metadata, info)
             images_out += images_dn
             info['image_series_index_offset'] += 1
