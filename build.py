@@ -261,9 +261,6 @@ def main(args: argparse.Namespace):
             'base'  : '',
         },
         'path': {
-            'process' : target_data['path']['process'].replace(target_path, build_path),
-            'ui_json' : target_data['path']['ui_json'].replace(target_path, build_path),
-            'schema'  : target_data['path']['schema' ].replace(target_path, build_path),
             'pdf'     : '',
         }
     }
@@ -272,18 +269,14 @@ def main(args: argparse.Namespace):
     # copy files in the `build` dir
     to_copy = [
         # [src dst]
-        [target_data['path']['process'], build_data['path']['process']                ],
-        [target_data['path']['ui_json'], build_data['path']['ui_json']                ],
-        [target_data['path']['schema' ], build_data['path']['schema' ]                ],
-        [weights_path                  , weights_path.replace(target_path, build_path)],
     ]
     for src_dst in to_copy:
         logger.info(f'copy : SRC={src_dst[0]} DST={src_dst[1]}')
         shutil.copy(src=src_dst[0],dst=src_dst[1])
 
     # load JSON UI
-    logger.info(f'load UI JSON content : {build_data['path']['ui_json']}')
-    with open(build_data['path']['ui_json'], 'r') as fid:
+    logger.info(f'load UI JSON content : {target_data['path']['ui_json']}')
+    with open(target_data['path']['ui_json'], 'r') as fid:
         json_content = json.load(fid)
 
     # prep info
@@ -302,8 +295,8 @@ def main(args: argparse.Namespace):
     pprint.pprint(build_data, sort_dicts=False)
 
     # load JSON Schema, to check if our updated JSON is ok
-    logger.info(f'load JSON Schema : {build_data['path']['schema']}')
-    with open(file=build_data['path']['schema'], mode='r') as fid:
+    logger.info(f'load JSON Schema : {target_data['path']['schema']}')
+    with open(file=target_data['path']['schema'], mode='r') as fid:
         schema_content = json.load(fp=fid)
     validator = jsonschema.Draft7Validator(schema=schema_content)
     errors = list(validator.iter_errors(instance=json_content))
