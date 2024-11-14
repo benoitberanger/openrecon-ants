@@ -310,32 +310,36 @@ def main(args: argparse.Namespace):
     # write the updated json in the `build` dir
     encoded_json_content = base64.b64encode((json.dumps(obj=json_content,indent=2)).encode('utf-8')).decode('utf-8')
     
-    # write the Dockerfile content
+    # write the Dockerfile content : the order and FROM/AS is optimized to reduce finale image size
     logger.info(f'Write `build` Dockerfile : {build_data['path']['docker']}')
     dockerfile_content = [
         f'# import python-ismrmrd-server as starting point',
-        f'FROM python-ismrmrd-server',
+        f'FROM python-ismrmrd-server AS base',
         f'',
-        f'# mandatory for OpenRecon (see OR documentation)',
-        f'LABEL "com.siemens-healthineers.magneticresonance.openrecon.metadata:1.1.0"="{encoded_json_content}"',
+        f'# Python modules installation',
+        f'RUN apt-get update && apt-get install -y gcc # surfa needs gcc to compile',
+        f'RUN pip3 --no-cache-dir install antspyx surfa',
+        f'RUN pip3 --no-cache-dir install torch --index-url https://download.pytorch.org/whl/cpu # CPU version of pytorch',
         f'',
-        f'# copy the .py module',
-        f'COPY {os.path.relpath(target_data['path']['process'], cwd)}  /opt/code/python-ismrmrd-server ',
-        f'',
-        f'# copy the .py module',
-        f'COPY {os.path.relpath(target_data['path']['process'], cwd)}  /opt/code/python-ismrmrd-server',
-        f'',
-        f'# Python modules',
-        f'RUN apt-get update && apt-get install -y gcc',
-        f'RUN pip3 --no-cache-dir install antspyx torch surfa',
-        f'',
-        f'# Cleanup files not required after installation \n',
+        f'# Cleanup files not required after installation',
         f'RUN apt-get clean && \\',
         f'    rm -rf /var/lib/apt/lists/* && \\',
         f'    rm -rf /root/.cach/pip',
         f'',
+        f'# Copy base image after installation, to reduce finale image size',
+        f'FROM base AS runtime',
+        f'',
+        f'# mandatory for OpenRecon (see OR documentation)',
+        f'LABEL "com.siemens-healthineers.magneticresonance.openrecon.metadata:1.1.0"="{encoded_json_content}"',
+        f'',
         f'# new CMD line',
         f'{cmdline}',
+        f'',
+        f'# copy the .py module',
+        f'COPY {os.path.relpath(target_data['path']['process'], cwd)}  /opt/code/python-ismrmrd-server',
+        f'',
+        f'# copy the .pt file (weights)',
+        f'COPY {os.path.relpath(weights_path, cwd)}  /opt/code/python-ismrmrd-server',
         f'',
     ]
     dockerfile_content = f'\n'.join(dockerfile_content)
