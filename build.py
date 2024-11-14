@@ -312,33 +312,36 @@ def main(args: argparse.Namespace):
     
     # write the Dockerfile content
     logger.info(f'Write `build` Dockerfile : {build_data['path']['docker']}')
+    dockerfile_content = [
+        f'# import python-ismrmrd-server as starting point',
+        f'FROM python-ismrmrd-server',
+        f'',
+        f'# mandatory for OpenRecon (see OR documentation)',
+        f'LABEL "com.siemens-healthineers.magneticresonance.openrecon.metadata:1.1.0"="{encoded_json_content}"',
+        f'',
+        f'# copy the .py module',
+        f'COPY {os.path.relpath(target_data['path']['process'], cwd)}  /opt/code/python-ismrmrd-server ',
+        f'',
+        f'# copy the .py module',
+        f'COPY {os.path.relpath(target_data['path']['process'], cwd)}  /opt/code/python-ismrmrd-server',
+        f'',
+        f'# Python modules',
+        f'RUN apt-get update && apt-get install -y gcc',
+        f'RUN pip3 --no-cache-dir install antspyx torch surfa',
+        f'',
+        f'# Cleanup files not required after installation \n',
+        f'RUN apt-get clean && \\',
+        f'    rm -rf /var/lib/apt/lists/* && \\',
+        f'    rm -rf /root/.cach/pip',
+        f'',
+        f'# new CMD line',
+        f'{cmdline}',
+        f'',
+    ]
+    dockerfile_content = f'\n'.join(dockerfile_content)
     with open(file=build_data['path']['docker'], mode='w') as fid:
-        fid.writelines([
-            '# import python-ismrmrd-server as starting point \n',
-            f'FROM python-ismrmrd-server \n',
-            '\n'])
-        fid.writelines([
-            '# mandatory for OpenRecon (see OR documentation) \n',
-            f'LABEL "com.siemens-healthineers.magneticresonance.openrecon.metadata:1.1.0"="{encoded_json_content}" \n',
-            '\n'])
-        fid.writelines([
-            '# copy the .py module \n',
-            f'COPY {os.path.relpath(target_data['path']['process'], cwd)}  /opt/code/python-ismrmrd-server \n',
-            '\n'])
-        fid.writelines([
-            '# copy the .pt file (weights) \n',
-            f'COPY {os.path.relpath(weights_path, cwd)}  /opt/code/python-ismrmrd-server \n',
-            '\n'])
-        fid.writelines([
-            '# Python modules \n',
-            'RUN apt-get update && apt-get install -y gcc \n',
-            'RUN pip3 --no-cache-dir install antspyx torch surfa \n',
-            '\n'])
-        fid.writelines([
-            '# new CMD line \n',
-            f'{cmdline} \n',
-            '\n'])
-        
+        fid.writelines(dockerfile_content)
+
     # build docker image
     logger.info(f'building docker image `{build_data['name']['docker']}` from Docker file {build_data['path']['docker']}')
     subprocess.run(['docker', 'build', '--tag', build_data['name']['docker'], '--file', build_data['path']['docker'], cwd], check=True)
