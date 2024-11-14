@@ -183,15 +183,12 @@ def process_image(images, connection, config, metadata):
         logging.debug("IceMiniHead[0]: %s", base64.b64decode(meta[0]['IceMiniHead']).decode('utf-8'))
 
     # Diagnostic info
-    dicomDset = pydicom.dataset.Dataset.from_json(base64.b64decode(meta[0]['DicomJson']))
-    ImageOrientationPatient = np.array(dicomDset.ImageOrientationPatient)
     matrix    = np.array(head[0].matrix_size  [:]) 
     fov       = np.array(head[0].field_of_view[:])
     voxelsize = fov/matrix
     read_dir  = np.array(images[0].read_dir )
     phase_dir = np.array(images[0].phase_dir)
     slice_dir = np.array(images[0].slice_dir)
-    logging.info(f'ImageOrientationPatient : {ImageOrientationPatient}')
     logging.info(f'MRD computed maxtrix [x y z] : {matrix   }')
     logging.info(f'MRD computed fov     [x y z] : {fov      }')
     logging.info(f'MRD computed voxel   [x y z] : {voxelsize}')
