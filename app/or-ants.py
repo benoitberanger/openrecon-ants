@@ -216,95 +216,141 @@ def process_image(images, connection, config, metadata):
     data_3d = get3Darray(data)
     logging.info(f'ANTs input data shape : {data_3d.shape}')
     ants_image_in = ants.from_numpy(data_3d)
-    images_out = []
+    
 
     info = {
         'image_series_index_offset': 0,
         'ImageProcessingHistory': [],
         'SequenceDescriptionAdditional': '',
     }
-    
+
     if saveoriginalimages:
         images_ORIG = createMRDImage(ants_image_in, head, meta, metadata, info)
-        images_out += images_ORIG
+        images_out = images_ORIG
         info['image_series_index_offset'] += 1
+
         if applyinbrainmask:
             info['ImageProcessingHistory'].append('SynthstripMask')
-            info['SequenceDescriptionAdditional'] += 'Masked_'
+            info['SequenceDescriptionAdditional'] += 'Brainmask'
             images_mask = createMRDImage(ants_mask, head, meta, metadata, info)
             images_out += images_mask
+            info['SequenceDescriptionAdditional'] += '_'
             info['image_series_index_offset'] += 1
 
-    if ANTsConfig == 'N4':
-        if applyinbrainmask:
-            ants_image_n4 = ants.n4_bias_field_correction(ants_image_in, verbose=True, mask=ants_mask)
-            info['ImageProcessingHistory'].append('ANTsN4BiasFieldCorrection@SynthstripMask')
-        else:
-            ants_image_n4 = ants.n4_bias_field_correction(ants_image_in, verbose=True)
-            info['ImageProcessingHistory'].append('ANTsN4BiasFieldCorrection')
-        if saveoriginalimages:
-            info['SequenceDescriptionAdditional'] += 'N4'
-        images_n4 = createMRDImage(ants_image_n4, head, meta, metadata, info)
-        images_out += images_n4
-
-    elif ANTsConfig == 'Dn':
-        if applyinbrainmask:
-            ants_image_dn = ants.denoise_image(ants_image_in, v=1, mask=ants_mask)
-            info['ImageProcessingHistory'].append('ANTsDenoiseImage@SynthstripMask')
-        else:
-            ants_image_dn = ants.denoise_image(ants_image_in, v=1)
-            info['ImageProcessingHistory'].append('ANTsDenoiseImage')
-        if saveoriginalimages:
-            info['SequenceDescriptionAdditional'] += 'Dn'
-        images_dn = createMRDImage(ants_image_dn, head, meta, metadata, info)
-        images_out += images_dn
-
-    elif ANTsConfig == 'N4Dn':
-        if applyinbrainmask:
-            ants_image_n4 = ants.n4_bias_field_correction(ants_image_in, verbose=True, mask=ants_mask)
-            info['ImageProcessingHistory'].append('ANTsN4BiasFieldCorrection@SynthstripMask')
-        else:
-            ants_image_n4 = ants.n4_bias_field_correction(ants_image_in, verbose=True)
-            info['ImageProcessingHistory'].append('ANTsN4BiasFieldCorrection')
-        if saveoriginalimages:
+        if ANTsConfig == 'N4':
+            if applyinbrainmask:
+                ants_image_n4 = ants.n4_bias_field_correction(ants_image_in, verbose=True, mask=ants_mask)
+                info['ImageProcessingHistory'].append('ANTsN4BiasFieldCorrection@SynthstripMask')
+            else:
+                ants_image_n4 = ants.n4_bias_field_correction(ants_image_in, verbose=True)
+                info['ImageProcessingHistory'].append('ANTsN4BiasFieldCorrection')
             info['SequenceDescriptionAdditional'] += 'N4'
             images_n4 = createMRDImage(ants_image_n4, head, meta, metadata, info)
             images_out += images_n4
-            info['image_series_index_offset'] += 1
-        if applyinbrainmask:
-            ants_image_n4_dn = ants.denoise_image(ants_image_n4, v=1, mask=ants_mask)
-            info['ImageProcessingHistory'].append('ANTsDenoiseImage@SynthstripMask')
-        else:
-            ants_image_n4_dn = ants.denoise_image(ants_image_n4, v=1)
-            info['ImageProcessingHistory'].append('ANTsDenoiseImage')
-        if saveoriginalimages:
-            info['SequenceDescriptionAdditional'] += '_Dn'
-        images_dn_n4 = createMRDImage(ants_image_n4_dn, head, meta, metadata, info)
-        images_out += images_dn_n4
 
-    elif ANTsConfig == 'DnN4':
-        if applyinbrainmask:
-            ants_image_dn = ants.denoise_image(ants_image_in, v=1, mask=ants_mask)
-            info['ImageProcessingHistory'].append('ANTsDenoiseImage@SynthstripMask')
-        else:
-            ants_image_dn = ants.denoise_image(ants_image_in, v=1)
-            info['ImageProcessingHistory'].append('ANTsDenoiseImage')
-        if saveoriginalimages:
+        elif ANTsConfig == 'Dn':
+            if applyinbrainmask:
+                ants_image_dn = ants.denoise_image(ants_image_in, v=1, mask=ants_mask)
+                info['ImageProcessingHistory'].append('ANTsDenoiseImage@SynthstripMask')
+            else:
+                ants_image_dn = ants.denoise_image(ants_image_in, v=1)
+                info['ImageProcessingHistory'].append('ANTsDenoiseImage')
             info['SequenceDescriptionAdditional'] += 'Dn'
             images_dn = createMRDImage(ants_image_dn, head, meta, metadata, info)
             images_out += images_dn
-            info['image_series_index_offset'] += 1
-        if applyinbrainmask:
-            ants_image_dn_n4 = ants.n4_bias_field_correction(ants_image_dn, verbose=True, mask=ants_mask)
-            info['ImageProcessingHistory'].append('ANTsN4BiasFieldCorrection@SynthstripMask')
-        else:
-            ants_image_dn_n4 = ants.n4_bias_field_correction(ants_image_dn, verbose=True)
-            info['ImageProcessingHistory'].append('ANTsN4BiasFieldCorrection')
-        if saveoriginalimages:
-            info['SequenceDescriptionAdditional'] += '_N4'
-        images_n4_dn = createMRDImage(ants_image_dn_n4, head, meta, metadata, info)
-        images_out += images_n4_dn
 
+        elif ANTsConfig == 'N4Dn':
+            if applyinbrainmask:
+                ants_image_n4 = ants.n4_bias_field_correction(ants_image_in, verbose=True, mask=ants_mask)
+                info['ImageProcessingHistory'].append('ANTsN4BiasFieldCorrection@SynthstripMask')
+            else:
+                ants_image_n4 = ants.n4_bias_field_correction(ants_image_in, verbose=True)
+                info['ImageProcessingHistory'].append('ANTsN4BiasFieldCorrection')
+            info['SequenceDescriptionAdditional'] += 'N4_'
+            images_n4 = createMRDImage(ants_image_n4, head, meta, metadata, info)
+            images_out += images_n4
+            info['image_series_index_offset'] += 1
+            if applyinbrainmask:
+                ants_image_n4_dn = ants.denoise_image(ants_image_n4, v=1, mask=ants_mask)
+                info['ImageProcessingHistory'].append('ANTsDenoiseImage@SynthstripMask')
+            else:
+                ants_image_n4_dn = ants.denoise_image(ants_image_n4, v=1)
+                info['ImageProcessingHistory'].append('ANTsDenoiseImage')
+            info['SequenceDescriptionAdditional'] += 'Dn'
+            images_dn_n4 = createMRDImage(ants_image_n4_dn, head, meta, metadata, info)
+            images_out += images_dn_n4
+
+        elif ANTsConfig == 'DnN4':
+            if applyinbrainmask:
+                ants_image_dn = ants.denoise_image(ants_image_in, v=1, mask=ants_mask)
+                info['ImageProcessingHistory'].append('ANTsDenoiseImage@SynthstripMask')
+            else:
+                ants_image_dn = ants.denoise_image(ants_image_in, v=1)
+                info['ImageProcessingHistory'].append('ANTsDenoiseImage')
+            info['SequenceDescriptionAdditional'] += 'Dn_'
+            images_dn = createMRDImage(ants_image_dn, head, meta, metadata, info)
+            images_out += images_dn
+            info['image_series_index_offset'] += 1
+            if applyinbrainmask:
+                ants_image_dn_n4 = ants.n4_bias_field_correction(ants_image_dn, verbose=True, mask=ants_mask)
+                info['ImageProcessingHistory'].append('ANTsN4BiasFieldCorrection@SynthstripMask')
+            else:
+                ants_image_dn_n4 = ants.n4_bias_field_correction(ants_image_dn, verbose=True)
+                info['ImageProcessingHistory'].append('ANTsN4BiasFieldCorrection')
+            info['SequenceDescriptionAdditional'] += '_N4'
+            images_n4_dn = createMRDImage(ants_image_dn_n4, head, meta, metadata, info)
+            images_out += images_n4_dn
+
+    else:
+
+        if ANTsConfig == 'N4':
+            if applyinbrainmask:
+                ants_image_n4 = ants.n4_bias_field_correction(ants_image_in, verbose=True, mask=ants_mask)
+                info['ImageProcessingHistory'].append('ANTsN4BiasFieldCorrection@SynthstripMask')
+            else:
+                ants_image_n4 = ants.n4_bias_field_correction(ants_image_in, verbose=True)
+                info['ImageProcessingHistory'].append('ANTsN4BiasFieldCorrection')
+            images_n4 = createMRDImage(ants_image_n4, head, meta, metadata, info)
+            images_out = images_n4
+
+        elif ANTsConfig == 'Dn':
+            if applyinbrainmask:
+                ants_image_dn = ants.denoise_image(ants_image_in, v=1, mask=ants_mask)
+                info['ImageProcessingHistory'].append('ANTsDenoiseImage@SynthstripMask')
+            else:
+                ants_image_dn = ants.denoise_image(ants_image_in, v=1)
+                info['ImageProcessingHistory'].append('ANTsDenoiseImage')
+            images_dn = createMRDImage(ants_image_dn, head, meta, metadata, info)
+            images_out = images_dn
+
+        elif ANTsConfig == 'N4Dn':
+            if applyinbrainmask:
+                ants_image_n4 = ants.n4_bias_field_correction(ants_image_in, verbose=True, mask=ants_mask)
+                info['ImageProcessingHistory'].append('ANTsN4BiasFieldCorrection@SynthstripMask')
+                ants_image_n4_dn = ants.denoise_image(ants_image_n4, v=1, mask=ants_mask)
+                info['ImageProcessingHistory'].append('ANTsDenoiseImage@SynthstripMask')
+            else:
+                ants_image_n4 = ants.n4_bias_field_correction(ants_image_in, verbose=True)
+                info['ImageProcessingHistory'].append('ANTsN4BiasFieldCorrection')
+                ants_image_n4_dn = ants.denoise_image(ants_image_n4, v=1)
+                info['ImageProcessingHistory'].append('ANTsDenoiseImage')
+            images_dn_n4 = createMRDImage(ants_image_n4_dn, head, meta, metadata, info)
+            images_out = images_dn_n4
+
+        elif ANTsConfig == 'DnN4':
+            if applyinbrainmask:
+                ants_image_dn = ants.denoise_image(ants_image_in, v=1, mask=ants_mask)
+                info['ImageProcessingHistory'].append('ANTsDenoiseImage@SynthstripMask')
+                ants_image_dn_n4 = ants.n4_bias_field_correction(ants_image_dn, verbose=True, mask=ants_mask)
+                info['ImageProcessingHistory'].append('ANTsN4BiasFieldCorrection@SynthstripMask')
+            else:
+                ants_image_dn = ants.denoise_image(ants_image_in, v=1)
+                info['ImageProcessingHistory'].append('ANTsDenoiseImage')
+                ants_image_dn_n4 = ants.n4_bias_field_correction(ants_image_dn, verbose=True)
+                info['ImageProcessingHistory'].append('ANTsN4BiasFieldCorrection')
+            images_n4_dn = createMRDImage(ants_image_dn_n4, head, meta, metadata, info)
+            images_out = images_n4_dn
+    
     return images_out
 
 
