@@ -1,5 +1,11 @@
 # openrecon-ants
 
+![ANTs V2 in XA60A on a 7T Terra.X](doc/OpenRecon_ANTS_V2_FLAIR-CP_FLAIR-UP_DIR-UP_SAG_blur.png)  
+MR Host screenshot from a Siemens 7T Terra.X in XA60A.  
+_Sequence_ Non-selective 3D SPACE.  
+_From left to right_ Original, brain mask (SynthStrip), N4BiasFieldCorrection (ANTs) in brain mask, DenoiseImage (ANTs) in brain mask after N4BiasFieldCorrection.  
+_From top to bottom_ 3D FLAIR with Circular Polarization (CP), 3D FLAIR with Universal Pulses (UP), 3D DIR with UP.  
+
 [ANTs](https://github.com/ANTsX/ANTs) using [ANTsPy](https://github.com/ANTsX/ANTsPy) in OpenRecon.  
 Brain masking is performed by [SynthStrip](https://surfer.nmr.mgh.harvard.edu/docs/synthstrip/)
 
