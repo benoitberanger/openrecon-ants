@@ -73,9 +73,9 @@ def check_docker() -> None:
     docker_version = matches[0].split('.')[0] # 20.21.22 -> 20
     maximum_docker_version = 25
     if int(docker_version) >= maximum_docker_version:
-        logger.critical(f'Docker version {docker_version} is too high. Maximum is {maximum_docker_version}')
+        logger.info(f'Docker version {docker_version} is too high. Siemens allows maximum version: {maximum_docker_version}')
         sys.exit(1)
-    logger.info(f'Docker version {docker_version}<{maximum_docker_version} is ok')
+    logger.info(f'Docker version {docker_version}<={maximum_docker_version} is ok')
 
 
 def clone_server(repo_path: str) -> None:
@@ -87,7 +87,7 @@ def clone_server(repo_path: str) -> None:
         logger.info(f'Found `python-ismrmrd-server` dir, do not clone it again : {repo_path}')
     else:
         logger.info('`python-ismrmrd-server` not found, cloning it...')
-        subprocess.run(['git', 'clone', git_adress], check=True)
+        subprocess.run(f'git clone {git_adress} && cd python-ismrmrd-server && git checkout b3012075b050faac32686f0fafea0c10cde861bd', shell=True, check=True)
 
 
 def build_server(repo_dockerfile_path: str) -> None:
@@ -226,7 +226,7 @@ def main(args: argparse.Namespace):
 
     # target dir
     target_path = os.path.join(cwd, args.dirname)
-    print_section(f'Check "target" dir and its content : {target_path}')
+    print_section(f'Check `target` dir and its content : {target_path}')
     target_data = check_target_dir(target_path)
 
     #############
@@ -261,7 +261,7 @@ def main(args: argparse.Namespace):
             'base'  : '',
         },
         'path': {
-            'pdf'     : '',
+            'pdf'   : ''
         }
     }
     pprint.pprint(build_data, sort_dicts=False)
@@ -275,7 +275,7 @@ def main(args: argparse.Namespace):
         shutil.copy(src=src_dst[0],dst=src_dst[1])
 
     # load JSON UI
-    logger.info(f'load UI JSON content : {target_data['path']['ui_json']}')
+    logger.info(f"load UI JSON content : {target_data['path']['ui_json']}")
     with open(target_data['path']['ui_json'], 'r') as fid:
         json_content = json.load(fid)
 
@@ -288,14 +288,14 @@ def main(args: argparse.Namespace):
     # other file/path
     build_data['name']['docker'] = f'OpenRecon_{vendor}_{name}:V{version}'.lower()
     build_data['name']['base'  ] = f'OpenRecon_{vendor}_{name}_V{version}'
-    build_data['path']['docker'] = os.path.join(build_path, f'{build_data['name']['base']}.Dockerfile')
-    build_data['path']['tar'   ] = os.path.join(build_path, f'{build_data['name']['base']}.tar')
-    build_data['path']['zip'   ] = os.path.join(build_path, f'{build_data['name']['base']}.zip')
-    build_data['path']['pdf'   ] = os.path.join(build_path, f'{build_data['name']['base']}.pdf')
+    build_data['path']['docker'] = os.path.join(build_path, f"{build_data['name']['base']}.Dockerfile")
+    build_data['path']['tar'   ] = os.path.join(build_path, f"{build_data['name']['base']}.tar")
+    build_data['path']['zip'   ] = os.path.join(build_path, f"{build_data['name']['base']}.zip")
+    build_data['path']['pdf'   ] = os.path.join(build_path, f"{build_data['name']['base']}.pdf")
     pprint.pprint(build_data, sort_dicts=False)
 
     # load JSON Schema, to check if our updated JSON is ok
-    logger.info(f'load JSON Schema : {target_data['path']['schema']}')
+    logger.info(f"load JSON Schema : {target_data['path']['schema']}")
     with open(file=target_data['path']['schema'], mode='r') as fid:
         schema_content = json.load(fp=fid)
     validator = jsonschema.Draft7Validator(schema=schema_content)
@@ -310,8 +310,8 @@ def main(args: argparse.Namespace):
     # write the updated json in the `build` dir
     encoded_json_content = base64.b64encode((json.dumps(obj=json_content,indent=2)).encode('utf-8')).decode('utf-8')
     
-    # write the Dockerfile content : the order and FROM/AS is optimized to reduce finale image size
-    logger.info(f'Write `build` Dockerfile : {build_data['path']['docker']}')
+    # write the Dockerfile content
+    logger.info(f"Write `build` Dockerfile : {build_data['path']['docker']}")
     dockerfile_content = [
         f'# import python-ismrmrd-server as starting point',
         f'FROM python-ismrmrd-server AS base',
@@ -342,18 +342,18 @@ def main(args: argparse.Namespace):
         f'COPY {os.path.relpath(weights_path, cwd)}  /opt/code/python-ismrmrd-server',
         f'',
     ]
-    dockerfile_content = f'\n'.join(dockerfile_content)
+    dockerfile_content = "\n".join(dockerfile_content)
     with open(file=build_data['path']['docker'], mode='w') as fid:
         fid.writelines(dockerfile_content)
-
+        
     # build docker image
-    logger.info(f'building docker image `{build_data['name']['docker']}` from Docker file {build_data['path']['docker']}')
+    logger.info(f"building docker image `{build_data['name']['docker']}` from Docker file {build_data['path']['docker']}")
     subprocess.run(['docker', 'build', '--tag', build_data['name']['docker'], '--file', build_data['path']['docker'], cwd], check=True)
 
     # save docker image in a .tar
-    logger.info(f'(1/2) saving image `{build_data['name']['docker']}` in a .tar {build_data['path']['tar']}')
+    logger.info(f"(1/2) saving image `{build_data['name']['docker']}` in a .tar {build_data['path']['tar']}")
     subprocess.run(['docker', 'save', '-o', build_data['path']['tar'], build_data['name']['docker']], check=True)
-    logger.info(f'(2/2) saving image DONE')
+    logger.info(f"(2/2) saving image DONE")
 
     # generate PDF
     lines = [
@@ -361,13 +361,13 @@ def main(args: argparse.Namespace):
         f'name={name}',
         f'version={version}',
     ]
-    logger.info(f'write PDF file : {build_data['path']['pdf']}')
+    logger.info(f"write PDF file : {build_data['path']['pdf']}")
     create_pdf(file_path=build_data['path']['pdf'], lines_of_text=lines)
 
     # save everything in a ZIP file
-    logger.info(f'(1/2) zip all files : {build_data['path']['zip']}')
+    logger.info(f"(1/2) zip all files : {build_data['path']['zip']}")
     subprocess.run(['zip', build_data['name']['base']+'.zip', build_data['name']['base']+'.tar', build_data['name']['base']+'.pdf'], check=True, cwd=build_path)
-    logger.info(f'(2/2) zip all files DONE')
+    logger.info(f"(2/2) zip all files DONE")
 
     # END
     print_section('All done !')
