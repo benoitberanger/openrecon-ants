@@ -394,20 +394,9 @@ def createMRDImage(ants_image, head, meta, metadata, info):
         if (imagesOut[iImg].data_type == ismrmrd.DATATYPE_CXFLOAT) or (imagesOut[iImg].data_type == ismrmrd.DATATYPE_CXDOUBLE):
             oldHeader.image_type = ismrmrd.IMTYPE_COMPLEX
 
-        # Increment series number when flag detected (i.e. follow ICE logic for splitting series)
-        # if mrdhelper.get_meta_value(meta[iImg], 'IceMiniHead') is not None:
-        #     if mrdhelper.extract_minihead_bool_param(base64.b64decode(meta[iImg]['IceMiniHead']).decode('utf-8'), 'BIsSeriesEnd') is True:
-        #         currentSeries += 1
-
         oldHeader.image_series_index += info['image_series_index_offset']
 
         imagesOut[iImg].setHead(oldHeader)
-
-        # # Determine max value (12 or 16 bit)
-        # BitsStored = 12
-        # if (mrdhelper.get_userParameterLong_value(metadata, "BitsStored") is not None):
-        #     BitsStored = mrdhelper.get_userParameterLong_value(metadata, "BitsStored")
-        # maxVal = 2**BitsStored - 1
 
         # Create a copy of the original ISMRMRD Meta attributes and update
         tmpMeta = meta[iImg]
@@ -419,13 +408,6 @@ def createMRDImage(ants_image, head, meta, metadata, info):
         if len(info['SequenceDescriptionAdditional']) > 0:
             tmpMeta['SequenceDescriptionAdditional']  = info['SequenceDescriptionAdditional']
         tmpMeta['Keep_image_geometry']            = 1
-
-        # # Add image orientation directions to MetaAttributes if not already present
-        # if tmpMeta.get('ImageRowDir') is None:
-        #     tmpMeta['ImageRowDir'] = ["{:.18f}".format(oldHeader.read_dir[0]), "{:.18f}".format(oldHeader.read_dir[1]), "{:.18f}".format(oldHeader.read_dir[2])]
-
-        # if tmpMeta.get('ImageColumnDir') is None:
-        #     tmpMeta['ImageColumnDir'] = ["{:.18f}".format(oldHeader.phase_dir[0]), "{:.18f}".format(oldHeader.phase_dir[1]), "{:.18f}".format(oldHeader.phase_dir[2])]
 
         metaXml = tmpMeta.serialize()
         logging.debug("Image MetaAttributes: %s", xml.dom.minidom.parseString(metaXml).toprettyxml())
