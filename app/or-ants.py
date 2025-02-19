@@ -459,7 +459,34 @@ class ImageFactory:
 
         return imagesOut
 
+def check_OR_arguments(config, arg_name: str, arg_type: type, arg_default: any) -> any:
+    arg_value = arg_default
 
+    if ('parameters' in config) and (arg_name in config['parameters']):
+        arg_value =  config['parameters'][arg_name]
+    else:
+        logging.warning(f"config['parameters']['{arg_name}'] NOT FOUND !!")
+
+    # in OR, the config only provides strings, so need to cast to the correct type
+    if arg_type is str:
+        pass
+    elif arg_type is bool:
+        if type(arg_value) is not bool:
+            if arg_value.lower() == 'true' : arg_value = True
+            if arg_value.lower() == 'false': arg_value = False
+    elif arg_type is int:
+        if type(arg_value) is not int:
+            arg_value = int(arg_value)
+    elif arg_type is float:
+        if type(arg_value) is not float:
+            arg_value = float(arg_value)
+    else:
+        raise TypeError('wrong type in the config)')
+
+    logging.info(f'{arg_name} = {arg_value}')
+    return arg_value
+
+    
 def process_image(images, connection, config, metadata):
     
     if len(images) == 0:
@@ -472,53 +499,10 @@ def process_image(images, connection, config, metadata):
 
     logging.debug("Processing data with %d images of type %s", len(images), ismrmrd.get_dtype_from_data_type(images[0].data_type))
 
-    # OR parameter : Save Original Images
-    SaveOriginalImages = True
-    if ('parameters' in config) and ('SaveOriginalImages' in config['parameters']):
-        logging.debug(f"type of config['parameters']['SaveOriginalImages'] is {type(config['parameters']['SaveOriginalImages'])}")
-
-        if type(config['parameters']['SaveOriginalImages']) is str:
-            if   config['parameters']['SaveOriginalImages'].lower() == 'true' :
-                SaveOriginalImages = True
-            elif config['parameters']['SaveOriginalImages'].lower() == 'false':
-                SaveOriginalImages = False
-
-        elif type(config['parameters']['SaveOriginalImages']) is bool:
-            SaveOriginalImages = config['parameters']['SaveOriginalImages']
-        
-    else:
-        logging.warning("config['parameters']['SaveOriginalImages'] NOT FOUND !!")
-
-    logging.info(f'SaveOriginalImages = {SaveOriginalImages}')
-
-    # OR parameter : Apply In Brain Mask
-    ApplyInBrainMask = True
-    if ('parameters' in config) and ('ApplyInBrainMask' in config['parameters']):
-        logging.debug(f"type of config['parameters']['ApplyInBrainMask'] is {type(config['parameters']['ApplyInBrainMask'])}")
-
-        if type(config['parameters']['ApplyInBrainMask']) is str:
-            if   config['parameters']['ApplyInBrainMask'].lower() == 'true' :
-                ApplyInBrainMask = True
-            elif config['parameters']['ApplyInBrainMask'].lower() == 'false':
-                ApplyInBrainMask = False
-
-        elif type(config['parameters']['ApplyInBrainMask']) is bool:
-            ApplyInBrainMask = config['parameters']['ApplyInBrainMask']
-        
-    else:
-        logging.warning("config['parameters']['ApplyInBrainMask'] NOT FOUND !!")
-
-    logging.info(f'ApplyInBrainMask = {ApplyInBrainMask}')
-
-    # OR parameter : ANTsConfig
-    ANTsConfig = 'N4Dn'
-    if ('parameters' in config) and ('ANTsConfig' in config['parameters']):
-        ANTsConfig =  config['parameters']['ANTsConfig']
-    else:
-        logging.warning("config['parameters']['ANTsConfig'] NOT FOUND !!")
-
-    logging.info(f'ANTsConfig = {ANTsConfig}')
-
+    # OR parameters
+    SaveOriginalImages = check_OR_arguments(config, 'SaveOriginalImages', bool, True  )
+    ApplyInBrainMask   = check_OR_arguments(config, 'ApplyInBrainMask'  , bool, True  )
+    ANTsConfig         = check_OR_arguments(config, 'ANTsConfig'        , str , 'N4Dn')
 
     # Extract image data into a 5D array of size [img cha z y x]
     data = np.stack([img.data                              for img in images])
