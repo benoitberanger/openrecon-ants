@@ -326,6 +326,9 @@ def main(args: argparse.Namespace):
         f'    rm -rf /var/lib/apt/lists/* && \\',
         f'    rm -rf /root/.cach/pip',
         f'',
+        f'# copy the .pt file (weights)',
+        f'COPY {os.path.relpath(weights_path, cwd)}  /opt/code/python-ismrmrd-server',
+        f'',
         f'# Copy base image after installation, to reduce finale image size',
         f'FROM base AS runtime',
         f'',
@@ -337,9 +340,6 @@ def main(args: argparse.Namespace):
         f'',
         f'# copy the .py module',
         f'COPY {os.path.relpath(target_data['path']['process'], cwd)}  /opt/code/python-ismrmrd-server',
-        f'',
-        f'# copy the .pt file (weights)',
-        f'COPY {os.path.relpath(weights_path, cwd)}  /opt/code/python-ismrmrd-server',
         f'',
     ]
     dockerfile_content = "\n".join(dockerfile_content)
