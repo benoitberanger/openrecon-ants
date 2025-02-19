@@ -1,17 +1,17 @@
 {
   "general": {
     "name": { "en": "ANTs" },
-    "version": "2.0.0",
+    "version": "3.0.0",
     "vendor": "ICM",
     "information": { "en": "Apply ANTs transformations, such as N4BiasFieldCorrection DenoiseImage" },
     "id": "ANTs",
       "regulatory_information":{
         "device_trade_name":"ANTs",
-        "production_identifier":"2.0.0",
+        "production_identifier":"3.0.0",
         "manufacturer_address":"https://github.com/benoitberanger/openrecon-ants",
         "made_in":"CENIR, ICM, Paris, France",
-        "manufacture_date":"2024-11-13",
-        "material_number":"ANTs_2.0.0",
+        "manufacture_date":"2025-02-19",
+        "material_number":"ANTs_3.0.0",
         "gtin":"",
         "udi":"",
         "safety_advices":"",
@@ -42,6 +42,10 @@
       "label": { "en": "ANTsConfig" },
       "values": [
         {
+          "id": "None",
+          "name": { "en": "None" }
+        },
+        {
           "id": "N4",
           "name": { "en": "N4BiasFieldCorrection" }
         },
@@ -69,11 +73,25 @@
       "default": true
     },
     {
-      "id": "ApplyInBrainMask",
-      "label": { "en": "Apply In Brain Mask" },
-      "type": "boolean",
-      "information": { "en": "Compute brain mask with Synthstrip and apply ANTs inside the mask." },
-      "default": true
+      "id": "BrainMaskConfig",
+      "type": "choice",
+      "label": { "en": "BrainMaskConfig" },
+      "values": [
+        {
+          "id": "None",
+          "name": { "en": "None: ANTs in the whole volume" }
+        },
+        {
+          "id": "ApplyInBrainMask",
+          "name": { "en": "ApplyInBrainMask: apply ANTs in brainmask" }
+        },
+        {
+          "id": "SkullStripping",
+          "name": { "en": "SkullStripping: mask brain, then ANTs" }
+        }
+      ],
+      "default": "ApplyInBrainMask",
+      "information": { "en": "Compute brain mask with Synthstrip and apply ANTs inside the mask." }
     }
   ]
 }

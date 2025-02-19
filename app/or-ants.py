@@ -463,6 +463,7 @@ def check_OR_arguments(config, arg_name: str, arg_type: type, arg_default: any) 
     arg_value = arg_default
 
     if ('parameters' in config) and (arg_name in config['parameters']):
+        logging.info(f"found config['parameters']['{arg_name}'] : type={type(config['parameters'][arg_name])} content={config['parameters'][arg_name]}")
         arg_value =  config['parameters'][arg_name]
     else:
         logging.warning(f"config['parameters']['{arg_name}'] NOT FOUND !!")
@@ -472,8 +473,9 @@ def check_OR_arguments(config, arg_name: str, arg_type: type, arg_default: any) 
         pass
     elif arg_type is bool:
         if type(arg_value) is not bool:
-            if arg_value.lower() == 'true' : arg_value = True
-            if arg_value.lower() == 'false': arg_value = False
+            if   arg_value == 'True' : arg_value = True
+            elif arg_value == 'False': arg_value = False
+            else: raise ValueError(f"{arg_name} is detected as `str` but is not 'True' or 'False' ! Cannot cast it to `bool`")
     elif arg_type is int:
         if type(arg_value) is not int:
             arg_value = int(arg_value)
@@ -500,9 +502,9 @@ def process_image(images, connection, config, metadata):
     logging.debug("Processing data with %d images of type %s", len(images), ismrmrd.get_dtype_from_data_type(images[0].data_type))
 
     # OR parameters
-    SaveOriginalImages = check_OR_arguments(config, 'SaveOriginalImages', bool, True  )
-    ApplyInBrainMask   = check_OR_arguments(config, 'ApplyInBrainMask'  , bool, True  )
-    ANTsConfig         = check_OR_arguments(config, 'ANTsConfig'        , str , 'N4Dn')
+    BrainMaskConfig    = check_OR_arguments(config, 'BrainMaskConfig'   , str , 'ApplyInBrainMask')
+    ANTsConfig         = check_OR_arguments(config, 'ANTsConfig'        , str , 'N4Dn'            )
+    SaveOriginalImages = check_OR_arguments(config, 'SaveOriginalImages', bool, True              )
 
     # Extract image data into a 5D array of size [img cha z y x]
     data = np.stack([img.data                              for img in images])
@@ -544,7 +546,7 @@ def process_image(images, connection, config, metadata):
 
     masking_args  = {}
     masking_label = ''
-    if ApplyInBrainMask:
+    if BrainMaskConfig != 'None':
 
         affine = compute_nifti_affine(images[0], voxelsize)
 
@@ -564,11 +566,15 @@ def process_image(images, connection, config, metadata):
         masking_args['mask'] = ants_mask
         masking_label = '@SynthstripMask'
 
+    images_out = images # default configuration
 
     if not SaveOriginalImages:
 
+        if BrainMaskConfig == 'SkullStripping':
+            ants_image_in = ants.mask_image(ants_image_in, ants_mask)
+
         if ANTsConfig == 'None':
-            images_out       = images
+            images_out       = imgfactory.ANTsImageToMRD(ants_image_in, history=masking_label)
         
         elif ANTsConfig == 'N4':
             ants_image_n4    = ants.n4_bias_field_correction(ants_image_in, verbose=True, **masking_args)
@@ -589,10 +595,14 @@ def process_image(images, connection, config, metadata):
             images_out       = imgfactory.ANTsImageToMRD(ants_image_dn_n4, history=['ANTsDenoiseImage'+masking_label, 'ANTsN4BiasFieldCorrection'+masking_label])
 
     else:
-        images_out           = images
 
-        if ApplyInBrainMask:
+        if   BrainMaskConfig == 'ApplyInBrainMask':
             images_out      += imgfactory.ANTsImageToMRD(ants_mask, history='SynthstripMask', seq_descrip_add='Brainmask')
+        elif BrainMaskConfig == 'SkullStripping':
+            images_out      += imgfactory.ANTsImageToMRD(ants_mask, history='SynthstripMask', seq_descrip_add='Brainmask')
+            ants_image_in    = ants.mask_image(ants_image_in, ants_mask)
+            imgfactory.SequenceDescriptionAdditional.pop()
+            images_out      += imgfactory.ANTsImageToMRD(ants_image_in, history='Synthstripped', seq_descrip_add='SS')
 
         if ANTsConfig == 'None':
             pass
