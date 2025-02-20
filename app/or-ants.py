@@ -6,10 +6,10 @@ import numpy as np
 import numpy.fft as fft
 import xml.dom.minidom
 import base64
-import mrdhelper
+#import mrdhelper
 import constants
 from time import perf_counter
-import pydicom
+#import pydicom
 
 import ants
 
@@ -106,334 +106,6 @@ def process(connection, config, metadata):
         except:
             logging.error("Failed to send close message!")
 
-def process_image(images, connection, config, metadata):
-    
-    if len(images) == 0:
-        return []
-
-    # Create folder, if necessary
-    if not os.path.exists(debugFolder):
-        os.makedirs(debugFolder)
-        logging.debug("Created folder " + debugFolder + " for debug output files")
-
-    logging.debug("Processing data with %d images of type %s", len(images), ismrmrd.get_dtype_from_data_type(images[0].data_type))
-
-    # OR parameter : Save Original Images
-    saveoriginalimages = True
-    if ('parameters' in config) and ('SaveOriginalImages' in config['parameters']):
-        logging.debug(f"type of config['parameters']['SaveOriginalImages'] is {type(config['parameters']['SaveOriginalImages'])}")
-
-        if type(config['parameters']['SaveOriginalImages']) is str:
-            if   config['parameters']['SaveOriginalImages'].lower() == 'true' :
-                saveoriginalimages = True
-            elif config['parameters']['SaveOriginalImages'].lower() == 'false':
-                saveoriginalimages = False
-
-        elif type(config['parameters']['SaveOriginalImages']) is bool:
-            saveoriginalimages = config['parameters']['SaveOriginalImages']
-        
-    else:
-        logging.warning("config['parameters']['SaveOriginalImages'] NOT FOUND !!")
-
-    logging.info(f'saveoriginalimages = {saveoriginalimages}')
-
-    # OR parameter : Apply In Brain Mask
-    applyinbrainmask = True
-    if ('parameters' in config) and ('ApplyInBrainMask' in config['parameters']):
-        logging.debug(f"type of config['parameters']['ApplyInBrainMask'] is {type(config['parameters']['ApplyInBrainMask'])}")
-
-        if type(config['parameters']['ApplyInBrainMask']) is str:
-            if   config['parameters']['ApplyInBrainMask'].lower() == 'true' :
-                applyinbrainmask = True
-            elif config['parameters']['ApplyInBrainMask'].lower() == 'false':
-                applyinbrainmask = False
-
-        elif type(config['parameters']['ApplyInBrainMask']) is bool:
-            applyinbrainmask = config['parameters']['ApplyInBrainMask']
-        
-    else:
-        logging.warning("config['parameters']['ApplyInBrainMask'] NOT FOUND !!")
-
-    logging.info(f'applyinbrainmask = {applyinbrainmask}')
-
-    # OR parameter : ANTsConfig
-    ANTsConfig = 'N4Dn'
-    if ('parameters' in config) and ('ANTsConfig' in config['parameters']):
-        ANTsConfig =  config['parameters']['ANTsConfig']
-    else:
-        logging.warning("config['parameters']['ANTsConfig'] NOT FOUND !!")
-
-    logging.info(f'ANTsConfig = {ANTsConfig}')
-
-
-    # Extract image data into a 5D array of size [img cha z y x]
-    data = np.stack([img.data                              for img in images])
-    logging.info(f'MRD supposed organization : [img cha z y x]')
-    logging.info(f'MRD data shape : {data.shape}')
-    head = [img.getHead()                                  for img in images]
-    meta = [ismrmrd.Meta.deserialize(img.attribute_string) for img in images]
-
-    logging.warning(f'MRD SequenceDescription : {meta[0]['SequenceDescription']}')
-
-    # Display MetaAttributes for first image
-    logging.debug("MetaAttributes[0]: %s", ismrmrd.Meta.serialize(meta[0]))
-
-    # Optional serialization of ICE MiniHeader
-    if 'IceMiniHead' in meta[0]:
-        logging.debug("IceMiniHead[0]: %s", base64.b64decode(meta[0]['IceMiniHead']).decode('utf-8'))
-
-    # Diagnostic info
-    matrix    = np.array(head[0].matrix_size  [:]) 
-    fov       = np.array(head[0].field_of_view[:])
-    voxelsize = fov/matrix
-    read_dir  = np.array(images[0].read_dir )
-    phase_dir = np.array(images[0].phase_dir)
-    slice_dir = np.array(images[0].slice_dir)
-    logging.info(f'MRD computed maxtrix [x y z] : {matrix   }')
-    logging.info(f'MRD computed fov     [x y z] : {fov      }')
-    logging.info(f'MRD computed voxel   [x y z] : {voxelsize}')
-    logging.info(f'MRD read_dir         [x y z] : {read_dir }')
-    logging.info(f'MRD phase_dir        [x y z] : {phase_dir}')
-    logging.info(f'MRD slice_dir        [x y z] : {slice_dir}')
-
-    if applyinbrainmask:
-
-        affine = compute_nifti_affine(images[0], voxelsize)
-
-        # synthstrip
-        logging.info(f'Affine for Synthstrip masking :')
-        print(affine)
-        data_iyx = data[:,0,0,:,:] # [img cha z y x] -> [img y x]
-        data_xyi = data_iyx.transpose((2,1,0)) # [img y x] -> [x y img]
-        logging.info(f'Shape of Synthstrip input : {data_xyi.shape}')
-        brainmask = synthstrip(data_xyi, voxelsize, affine)
-        brainmask = brainmask.transpose((1,0,2)) # [x y img] -> [y x img]
-        logging.info(f'Shape of mask (before ANTs) : {brainmask.shape}')
-        # !!! ants N4 has a weird conversion==unstable mask system
-        # workaround : cast the input nparray from bool to float
-        ants_mask = ants.from_numpy(np.array(brainmask,dtype=np.float32))
-
-    data_3d = get3Darray(data)
-    logging.info(f'ANTs input data shape : {data_3d.shape}')
-    ants_image_in = ants.from_numpy(data_3d)
-    
-
-    info = {
-        'image_series_index_offset': 0,
-        'ImageProcessingHistory': [],
-        'SequenceDescriptionAdditional': '',
-    }
-
-    if saveoriginalimages:
-        images_ORIG = createMRDImage(ants_image_in, head, meta, metadata, info)
-        images_out = images_ORIG
-        info['image_series_index_offset'] += 1
-
-        if applyinbrainmask:
-            info['ImageProcessingHistory'].append('SynthstripMask')
-            info['SequenceDescriptionAdditional'] += 'Brainmask'
-            images_mask = createMRDImage(ants_mask, head, meta, metadata, info)
-            images_out += images_mask
-            info['SequenceDescriptionAdditional'] += '_'
-            info['image_series_index_offset'] += 1
-
-        if ANTsConfig == 'N4':
-            if applyinbrainmask:
-                ants_image_n4 = ants.n4_bias_field_correction(ants_image_in, verbose=True, mask=ants_mask)
-                info['ImageProcessingHistory'].append('ANTsN4BiasFieldCorrection@SynthstripMask')
-            else:
-                ants_image_n4 = ants.n4_bias_field_correction(ants_image_in, verbose=True)
-                info['ImageProcessingHistory'].append('ANTsN4BiasFieldCorrection')
-            info['SequenceDescriptionAdditional'] += 'N4'
-            images_n4 = createMRDImage(ants_image_n4, head, meta, metadata, info)
-            images_out += images_n4
-
-        elif ANTsConfig == 'Dn':
-            if applyinbrainmask:
-                ants_image_dn = ants.denoise_image(ants_image_in, v=1, mask=ants_mask)
-                info['ImageProcessingHistory'].append('ANTsDenoiseImage@SynthstripMask')
-            else:
-                ants_image_dn = ants.denoise_image(ants_image_in, v=1)
-                info['ImageProcessingHistory'].append('ANTsDenoiseImage')
-            info['SequenceDescriptionAdditional'] += 'Dn'
-            images_dn = createMRDImage(ants_image_dn, head, meta, metadata, info)
-            images_out += images_dn
-
-        elif ANTsConfig == 'N4Dn':
-            if applyinbrainmask:
-                ants_image_n4 = ants.n4_bias_field_correction(ants_image_in, verbose=True, mask=ants_mask)
-                info['ImageProcessingHistory'].append('ANTsN4BiasFieldCorrection@SynthstripMask')
-            else:
-                ants_image_n4 = ants.n4_bias_field_correction(ants_image_in, verbose=True)
-                info['ImageProcessingHistory'].append('ANTsN4BiasFieldCorrection')
-            info['SequenceDescriptionAdditional'] += 'N4'
-            images_n4 = createMRDImage(ants_image_n4, head, meta, metadata, info)
-            images_out += images_n4
-            info['image_series_index_offset'] += 1
-            if applyinbrainmask:
-                ants_image_n4_dn = ants.denoise_image(ants_image_n4, v=1, mask=ants_mask)
-                info['ImageProcessingHistory'].append('ANTsDenoiseImage@SynthstripMask')
-            else:
-                ants_image_n4_dn = ants.denoise_image(ants_image_n4, v=1)
-                info['ImageProcessingHistory'].append('ANTsDenoiseImage')
-            info['SequenceDescriptionAdditional'] += '_Dn'
-            images_dn_n4 = createMRDImage(ants_image_n4_dn, head, meta, metadata, info)
-            images_out += images_dn_n4
-
-        elif ANTsConfig == 'DnN4':
-            if applyinbrainmask:
-                ants_image_dn = ants.denoise_image(ants_image_in, v=1, mask=ants_mask)
-                info['ImageProcessingHistory'].append('ANTsDenoiseImage@SynthstripMask')
-            else:
-                ants_image_dn = ants.denoise_image(ants_image_in, v=1)
-                info['ImageProcessingHistory'].append('ANTsDenoiseImage')
-            info['SequenceDescriptionAdditional'] += 'Dn'
-            images_dn = createMRDImage(ants_image_dn, head, meta, metadata, info)
-            images_out += images_dn
-            info['image_series_index_offset'] += 1
-            if applyinbrainmask:
-                ants_image_dn_n4 = ants.n4_bias_field_correction(ants_image_dn, verbose=True, mask=ants_mask)
-                info['ImageProcessingHistory'].append('ANTsN4BiasFieldCorrection@SynthstripMask')
-            else:
-                ants_image_dn_n4 = ants.n4_bias_field_correction(ants_image_dn, verbose=True)
-                info['ImageProcessingHistory'].append('ANTsN4BiasFieldCorrection')
-            info['SequenceDescriptionAdditional'] += '_N4'
-            images_n4_dn = createMRDImage(ants_image_dn_n4, head, meta, metadata, info)
-            images_out += images_n4_dn
-
-    else:
-
-        if ANTsConfig == 'N4':
-            if applyinbrainmask:
-                ants_image_n4 = ants.n4_bias_field_correction(ants_image_in, verbose=True, mask=ants_mask)
-                info['ImageProcessingHistory'].append('ANTsN4BiasFieldCorrection@SynthstripMask')
-            else:
-                ants_image_n4 = ants.n4_bias_field_correction(ants_image_in, verbose=True)
-                info['ImageProcessingHistory'].append('ANTsN4BiasFieldCorrection')
-            images_n4 = createMRDImage(ants_image_n4, head, meta, metadata, info)
-            images_out = images_n4
-
-        elif ANTsConfig == 'Dn':
-            if applyinbrainmask:
-                ants_image_dn = ants.denoise_image(ants_image_in, v=1, mask=ants_mask)
-                info['ImageProcessingHistory'].append('ANTsDenoiseImage@SynthstripMask')
-            else:
-                ants_image_dn = ants.denoise_image(ants_image_in, v=1)
-                info['ImageProcessingHistory'].append('ANTsDenoiseImage')
-            images_dn = createMRDImage(ants_image_dn, head, meta, metadata, info)
-            images_out = images_dn
-
-        elif ANTsConfig == 'N4Dn':
-            if applyinbrainmask:
-                ants_image_n4 = ants.n4_bias_field_correction(ants_image_in, verbose=True, mask=ants_mask)
-                info['ImageProcessingHistory'].append('ANTsN4BiasFieldCorrection@SynthstripMask')
-                ants_image_n4_dn = ants.denoise_image(ants_image_n4, v=1, mask=ants_mask)
-                info['ImageProcessingHistory'].append('ANTsDenoiseImage@SynthstripMask')
-            else:
-                ants_image_n4 = ants.n4_bias_field_correction(ants_image_in, verbose=True)
-                info['ImageProcessingHistory'].append('ANTsN4BiasFieldCorrection')
-                ants_image_n4_dn = ants.denoise_image(ants_image_n4, v=1)
-                info['ImageProcessingHistory'].append('ANTsDenoiseImage')
-            images_dn_n4 = createMRDImage(ants_image_n4_dn, head, meta, metadata, info)
-            images_out = images_dn_n4
-
-        elif ANTsConfig == 'DnN4':
-            if applyinbrainmask:
-                ants_image_dn = ants.denoise_image(ants_image_in, v=1, mask=ants_mask)
-                info['ImageProcessingHistory'].append('ANTsDenoiseImage@SynthstripMask')
-                ants_image_dn_n4 = ants.n4_bias_field_correction(ants_image_dn, verbose=True, mask=ants_mask)
-                info['ImageProcessingHistory'].append('ANTsN4BiasFieldCorrection@SynthstripMask')
-            else:
-                ants_image_dn = ants.denoise_image(ants_image_in, v=1)
-                info['ImageProcessingHistory'].append('ANTsDenoiseImage')
-                ants_image_dn_n4 = ants.n4_bias_field_correction(ants_image_dn, verbose=True)
-                info['ImageProcessingHistory'].append('ANTsN4BiasFieldCorrection')
-            images_n4_dn = createMRDImage(ants_image_dn_n4, head, meta, metadata, info)
-            images_out = images_n4_dn
-    
-    return images_out
-
-
-def get3Darray(data) -> np.array:
-
-    # Reformat data to [y x z cha img], i.e. [row col] for the first two dimensions
-    data = data.transpose((3, 4, 2, 1, 0))
-
-    logging.debug("Original image data is size %s" % (data.shape,))
-    np.save(debugFolder + "/" + "imgOrig.npy", data)
-
-    data_5d = data.astype(np.float64)
-
-    # Reformat data from [y x z cha img] to [y x img]
-    data_3d = data_5d[:,:,0,0,:]
-    
-    return data_3d
-
-
-def createMRDImage(ants_image, head, meta, metadata, info):
-
-    # Reformat data from [y x img] to [y x z cha img]
-    data = ants_image.numpy()[:,:,np.newaxis,np.newaxis,:].astype(np.int16)
-
-    # Re-slice back into 2D images
-    imagesOut = [None] * data.shape[-1]
-    for iImg in range(data.shape[-1]):
-
-        # Create new MRD instance for the inverted image
-        # Transpose from convenience shape of [y x z cha] to MRD Image shape of [cha z y x]
-        # from_array() should be called with 'transpose=False' to avoid warnings, and when called
-        # with this option, can take input as: [cha z y x], [z y x], or [y x]
-        imagesOut[iImg] = ismrmrd.Image.from_array(data[...,iImg].transpose((3, 2, 0, 1)), transpose=False)
-
-        # Create a copy of the original fixed header and update the data_type
-        # (we changed it to int16 from all other types)
-        oldHeader = head[iImg]
-        oldHeader.data_type = imagesOut[iImg].data_type
-
-        # Set the image_type to match the data_type for complex data
-        if (imagesOut[iImg].data_type == ismrmrd.DATATYPE_CXFLOAT) or (imagesOut[iImg].data_type == ismrmrd.DATATYPE_CXDOUBLE):
-            oldHeader.image_type = ismrmrd.IMTYPE_COMPLEX
-
-        # Increment series number when flag detected (i.e. follow ICE logic for splitting series)
-        # if mrdhelper.get_meta_value(meta[iImg], 'IceMiniHead') is not None:
-        #     if mrdhelper.extract_minihead_bool_param(base64.b64decode(meta[iImg]['IceMiniHead']).decode('utf-8'), 'BIsSeriesEnd') is True:
-        #         currentSeries += 1
-
-        oldHeader.image_series_index += info['image_series_index_offset']
-
-        imagesOut[iImg].setHead(oldHeader)
-
-        # # Determine max value (12 or 16 bit)
-        # BitsStored = 12
-        # if (mrdhelper.get_userParameterLong_value(metadata, "BitsStored") is not None):
-        #     BitsStored = mrdhelper.get_userParameterLong_value(metadata, "BitsStored")
-        # maxVal = 2**BitsStored - 1
-
-        # Create a copy of the original ISMRMRD Meta attributes and update
-        tmpMeta = meta[iImg]
-        tmpMeta['DataRole']                       = 'Image'
-        if len(info['ImageProcessingHistory']) > 0:
-            tmpMeta['ImageProcessingHistory']         = info['ImageProcessingHistory']
-        # tmpMeta['WindowCenter']                   = str((maxVal+1)/2)
-        # tmpMeta['WindowWidth']                    = str((maxVal+1))
-        if len(info['SequenceDescriptionAdditional']) > 0:
-            tmpMeta['SequenceDescriptionAdditional']  = info['SequenceDescriptionAdditional']
-        tmpMeta['Keep_image_geometry']            = 1
-
-        # # Add image orientation directions to MetaAttributes if not already present
-        # if tmpMeta.get('ImageRowDir') is None:
-        #     tmpMeta['ImageRowDir'] = ["{:.18f}".format(oldHeader.read_dir[0]), "{:.18f}".format(oldHeader.read_dir[1]), "{:.18f}".format(oldHeader.read_dir[2])]
-
-        # if tmpMeta.get('ImageColumnDir') is None:
-        #     tmpMeta['ImageColumnDir'] = ["{:.18f}".format(oldHeader.phase_dir[0]), "{:.18f}".format(oldHeader.phase_dir[1]), "{:.18f}".format(oldHeader.phase_dir[2])]
-
-        metaXml = tmpMeta.serialize()
-        logging.debug("Image MetaAttributes: %s", xml.dom.minidom.parseString(metaXml).toprettyxml())
-        logging.debug("Image data has %d elements", imagesOut[iImg].data.size)
-
-        imagesOut[iImg].attribute_string = metaXml
-
-    return imagesOut
 
 def synthstrip(data, voxelsize, affine):
     # necessary for speed gains (I think)
@@ -675,6 +347,7 @@ def synthstrip(data, voxelsize, affine):
 
     return mask.data
 
+
 def compute_nifti_affine(image_header, voxel_size):
 
     # Extract necessary fields
@@ -702,3 +375,257 @@ def compute_nifti_affine(image_header, voxel_size):
     affine[:3,  3] = position_ras
     
     return affine
+
+
+class ImageFactory:
+
+    def __init__(self) -> None:
+        self.image_series_index_offset    : int       =  0
+        self.ImageProcessingHistory       : list[str] = []
+        self.SequenceDescriptionAdditional: list[str] = []
+        self.mrdHeader                    : list[ismrmrd.ImageHeader]
+        self.mrdMeta                      : list[ismrmrd.Meta]
+
+    @staticmethod
+    def MRD5Dto3D(data_mrd5D: np.array) -> np.array:
+
+        # Reformat data to [y x z cha img], i.e. [row col] for the first two dimensions
+        data_mrd5D = data_mrd5D.transpose((3, 4, 2, 1, 0))
+
+        logging.debug("Original image data is size %s" % (data_mrd5D.shape,))
+
+        data_5d = data_mrd5D.astype(np.float64)
+
+        # Reformat data from [y x z cha img] to [y x img]
+        data_3d = data_5d[:,:,0,0,:]
+        
+        return data_3d
+    
+    def ANTsImageToMRD(self, ants_image: ants.ants_image.ANTsImage, history: str|list[str] = '', seq_descrip_add: str = '') -> list[ismrmrd.Image]:
+
+        if   type(history) is list:
+            self.ImageProcessingHistory += history
+        elif type(history) is str and len(history)>0:
+            self.ImageProcessingHistory.append(history)
+        else:
+            TypeError('bad `history` type')
+
+        if len(seq_descrip_add)>0:
+            self.image_series_index_offset += 1
+            self.SequenceDescriptionAdditional.append(seq_descrip_add)
+
+        # Reformat data from [y x img] to [y x z cha img]
+        data = ants_image.numpy()[:,:,np.newaxis,np.newaxis,:].astype(np.int16)
+
+        # Re-slice back into 2D images
+        imagesOut = [None] * data.shape[-1]
+        for iImg in range(data.shape[-1]):
+
+            # Create new MRD instance for the inverted image
+            # Transpose from convenience shape of [y x z cha] to MRD Image shape of [cha z y x]
+            # from_array() should be called with 'transpose=False' to avoid warnings, and when called
+            # with this option, can take input as: [cha z y x], [z y x], or [y x]
+            imagesOut[iImg] = ismrmrd.Image.from_array(data[...,iImg].transpose((3, 2, 0, 1)), transpose=False)
+
+            # Create a copy of the original fixed header and update the data_type
+            # (we changed it to int16 from all other types)
+            oldHeader = self.mrdHeader[iImg]
+            oldHeader.data_type = imagesOut[iImg].data_type
+
+            # Set the image_type to match the data_type for complex data
+            if (imagesOut[iImg].data_type == ismrmrd.DATATYPE_CXFLOAT) or (imagesOut[iImg].data_type == ismrmrd.DATATYPE_CXDOUBLE):
+                oldHeader.image_type = ismrmrd.IMTYPE_COMPLEX
+
+            oldHeader.image_series_index += self.image_series_index_offset
+
+            imagesOut[iImg].setHead(oldHeader)
+
+            # Create a copy of the original ISMRMRD Meta attributes and update
+            tmpMeta = self.mrdMeta[iImg]
+            tmpMeta['DataRole']                       = 'Image'
+            if len(self.ImageProcessingHistory       ) > 0: tmpMeta['ImageProcessingHistory'       ] = self.ImageProcessingHistory
+            if len(self.SequenceDescriptionAdditional) > 0: tmpMeta['SequenceDescriptionAdditional'] = '_'.join(self.SequenceDescriptionAdditional)
+            tmpMeta['Keep_image_geometry']            = 1
+
+            metaXml = tmpMeta.serialize()
+            logging.debug("Image MetaAttributes: %s", xml.dom.minidom.parseString(metaXml).toprettyxml())
+            logging.debug("Image data has %d elements", imagesOut[iImg].data.size)
+
+            imagesOut[iImg].attribute_string = metaXml
+
+        logging.info(f'ImageFactory: {self.image_series_index_offset=}')
+        logging.info(f'ImageFactory: {self.ImageProcessingHistory=}')
+        logging.info(f'ImageFactory: {self.SequenceDescriptionAdditional=}')
+
+        return imagesOut
+
+def check_OR_arguments(config, arg_name: str, arg_type: type, arg_default: any) -> any:
+    arg_value = arg_default
+
+    if ('parameters' in config) and (arg_name in config['parameters']):
+        logging.info(f"found config['parameters']['{arg_name}'] : type={type(config['parameters'][arg_name])} content={config['parameters'][arg_name]}")
+        arg_value =  config['parameters'][arg_name]
+    else:
+        logging.warning(f"config['parameters']['{arg_name}'] NOT FOUND !!")
+
+    # in OR, the config only provides strings, so need to cast to the correct type
+    if arg_type is str:
+        pass
+    elif arg_type is bool:
+        if type(arg_value) is not bool:
+            if   arg_value == 'True' : arg_value = True
+            elif arg_value == 'False': arg_value = False
+            else: raise ValueError(f"{arg_name} is detected as `str` but is not 'True' or 'False' ! Cannot cast it to `bool`")
+    elif arg_type is int:
+        if type(arg_value) is not int:
+            arg_value = int(arg_value)
+    elif arg_type is float:
+        if type(arg_value) is not float:
+            arg_value = float(arg_value)
+    else:
+        raise TypeError('wrong type in the config)')
+
+    logging.info(f'{arg_name} = {arg_value}')
+    return arg_value
+
+    
+def process_image(images, connection, config, metadata):
+    
+    if len(images) == 0:
+        return []
+
+    # Create folder, if necessary
+    if not os.path.exists(debugFolder):
+        os.makedirs(debugFolder)
+        logging.debug("Created folder " + debugFolder + " for debug output files")
+
+    logging.debug("Processing data with %d images of type %s", len(images), ismrmrd.get_dtype_from_data_type(images[0].data_type))
+
+    # OR parameters
+    BrainMaskConfig    = check_OR_arguments(config, 'BrainMaskConfig'   , str , 'ApplyInBrainMask')
+    ANTsConfig         = check_OR_arguments(config, 'ANTsConfig'        , str , 'N4Dn'            )
+    SaveOriginalImages = check_OR_arguments(config, 'SaveOriginalImages', bool, True              )
+
+    # Extract image data into a 5D array of size [img cha z y x]
+    data = np.stack([img.data                              for img in images])
+    logging.info(f'MRD supposed organization : [img cha z y x]')
+    logging.info(f'MRD data shape : {data.shape}')
+    head = [img.getHead()                                  for img in images]
+    meta = [ismrmrd.Meta.deserialize(img.attribute_string) for img in images]
+
+    logging.warning(f'MRD SequenceDescription : {meta[0]['SequenceDescription']}')
+
+    # Display MetaAttributes for first image
+    logging.debug("MetaAttributes[0]: %s", ismrmrd.Meta.serialize(meta[0]))
+
+    # Optional serialization of ICE MiniHeader
+    if 'IceMiniHead' in meta[0]:
+        logging.debug("IceMiniHead[0]: %s", base64.b64decode(meta[0]['IceMiniHead']).decode('utf-8'))
+
+    # Diagnostic info
+    matrix    = np.array(head[0].matrix_size  [:]) 
+    fov       = np.array(head[0].field_of_view[:])
+    voxelsize = fov/matrix
+    read_dir  = np.array(images[0].read_dir )
+    phase_dir = np.array(images[0].phase_dir)
+    slice_dir = np.array(images[0].slice_dir)
+    logging.info(f'MRD computed maxtrix [x y z] : {matrix   }')
+    logging.info(f'MRD computed fov     [x y z] : {fov      }')
+    logging.info(f'MRD computed voxel   [x y z] : {voxelsize}')
+    logging.info(f'MRD read_dir         [x y z] : {read_dir }')
+    logging.info(f'MRD phase_dir        [x y z] : {phase_dir}')
+    logging.info(f'MRD slice_dir        [x y z] : {slice_dir}')
+
+    imgfactory = ImageFactory()
+    imgfactory.mrdHeader = head
+    imgfactory.mrdMeta   = meta
+
+    data_3d = imgfactory.MRD5Dto3D(data_mrd5D=data)
+    logging.info(f'ANTs input data shape : {data_3d.shape}')
+    ants_image_in = ants.from_numpy(data_3d)
+
+    masking_args  = {}
+    masking_label = ''
+    if BrainMaskConfig != 'None':
+
+        affine = compute_nifti_affine(images[0], voxelsize)
+
+        # synthstrip
+        logging.info(f'Affine for Synthstrip masking :')
+        print(affine)
+        data_iyx = data[:,0,0,:,:] # [img cha z y x] -> [img y x]
+        data_xyi = data_iyx.transpose((2,1,0)) # [img y x] -> [x y img]
+        logging.info(f'Shape of Synthstrip input : {data_xyi.shape}')
+        brainmask = synthstrip(data_xyi, voxelsize, affine)
+        brainmask = brainmask.transpose((1,0,2)) # [x y img] -> [y x img]
+        logging.info(f'Shape of mask (before ANTs) : {brainmask.shape}')
+
+        # !!! ants N4 has a weird conversion==unstable mask system
+        # workaround : cast the input nparray from bool to float
+        ants_mask = ants.from_numpy(np.array(brainmask,dtype=np.float32))
+        masking_args['mask'] = ants_mask
+        masking_label = '@SynthstripMask'
+
+    # default configuration, just copy original images
+    images_out = imgfactory.ANTsImageToMRD(ants_image_in) # !!! still need to "Keep_image_geometry"
+
+    if not SaveOriginalImages:
+
+        if BrainMaskConfig == 'SkullStripping':
+            ants_image_in = ants.mask_image(ants_image_in, ants_mask)
+
+        if ANTsConfig == 'None':
+            images_out       = imgfactory.ANTsImageToMRD(ants_image_in, history=masking_label)
+        
+        elif ANTsConfig == 'N4':
+            ants_image_n4    = ants.n4_bias_field_correction(ants_image_in, verbose=True, **masking_args)
+            images_out       = imgfactory.ANTsImageToMRD(ants_image_n4, history='ANTsN4BiasFieldCorrection'+masking_label)
+
+        elif ANTsConfig == 'Dn':
+            ants_image_dn    = ants.denoise_image(ants_image_in, v=1, **masking_args)
+            images_out       = imgfactory.ANTsImageToMRD(ants_image_dn, history='ANTsDenoiseImage'+masking_label)
+
+        elif ANTsConfig == 'N4Dn':
+            ants_image_n4    = ants.n4_bias_field_correction(ants_image_in, verbose=True, **masking_args)
+            ants_image_n4_dn = ants.denoise_image(ants_image_n4, v=1, **masking_args)
+            images_out       = imgfactory.ANTsImageToMRD(ants_image_n4_dn, history=['ANTsN4BiasFieldCorrection'+masking_label, 'ANTsDenoiseImage'+masking_label])
+
+        elif ANTsConfig == 'DnN4':
+            ants_image_dn    = ants.denoise_image(ants_image_in, v=1, **masking_args)
+            ants_image_dn_n4 = ants.n4_bias_field_correction(ants_image_dn, verbose=True, **masking_args)
+            images_out       = imgfactory.ANTsImageToMRD(ants_image_dn_n4, history=['ANTsDenoiseImage'+masking_label, 'ANTsN4BiasFieldCorrection'+masking_label])
+
+    else:
+
+        if   BrainMaskConfig == 'ApplyInBrainMask':
+            images_out      += imgfactory.ANTsImageToMRD(ants_mask, history='SynthstripMask', seq_descrip_add='Brainmask')
+        elif BrainMaskConfig == 'SkullStripping':
+            images_out      += imgfactory.ANTsImageToMRD(ants_mask, history='SynthstripMask', seq_descrip_add='Brainmask')
+            ants_image_in    = ants.mask_image(ants_image_in, ants_mask)
+            imgfactory.SequenceDescriptionAdditional.pop()
+            images_out      += imgfactory.ANTsImageToMRD(ants_image_in, history='Synthstripped', seq_descrip_add='SS')
+
+        if ANTsConfig == 'None':
+            pass
+        
+        elif ANTsConfig == 'N4':
+            ants_image_n4    = ants.n4_bias_field_correction(ants_image_in, verbose=True, **masking_args)
+            images_out      += imgfactory.ANTsImageToMRD(ants_image_n4, history='ANTsN4BiasFieldCorrection'+masking_label, seq_descrip_add='N4')
+
+        elif ANTsConfig == 'Dn':
+            ants_image_dn    = ants.denoise_image(ants_image_in, v=1, **masking_args)
+            images_out      += imgfactory.ANTsImageToMRD(ants_image_dn, history='ANTsDenoiseImage'+masking_label, seq_descrip_add='Dn')
+
+        elif ANTsConfig == 'N4Dn':
+            ants_image_n4    = ants.n4_bias_field_correction(ants_image_in, verbose=True, **masking_args)
+            images_out      += imgfactory.ANTsImageToMRD(ants_image_n4, history='ANTsN4BiasFieldCorrection'+masking_label, seq_descrip_add='N4')
+            ants_image_n4_dn = ants.denoise_image(ants_image_n4, v=1, **masking_args)
+            images_out      += imgfactory.ANTsImageToMRD(ants_image_n4_dn, history='ANTsDenoiseImage'+masking_label, seq_descrip_add='Dn')
+
+        elif ANTsConfig == 'DnN4':
+            ants_image_dn    = ants.denoise_image(ants_image_in, v=1, **masking_args)
+            images_out      += imgfactory.ANTsImageToMRD(ants_image_dn, history='ANTsDenoiseImage'+masking_label, seq_descrip_add='Dn')
+            ants_image_dn_n4 = ants.n4_bias_field_correction(ants_image_dn, verbose=True, **masking_args)
+            images_out      += imgfactory.ANTsImageToMRD(ants_image_dn_n4, history='ANTsN4BiasFieldCorrection'+masking_label, seq_descrip_add='N4')
+
+    return images_out
