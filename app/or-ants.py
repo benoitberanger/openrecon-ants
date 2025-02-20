@@ -566,7 +566,8 @@ def process_image(images, connection, config, metadata):
         masking_args['mask'] = ants_mask
         masking_label = '@SynthstripMask'
 
-    images_out = images # default configuration
+    # default configuration, just copy original images
+    images_out = imgfactory.ANTsImageToMRD(ants_image_in) # !!! still need to "Keep_image_geometry"
 
     if not SaveOriginalImages:
 
