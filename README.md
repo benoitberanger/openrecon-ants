@@ -1,15 +1,27 @@
 # openrecon-ants
 
+## Screenshots from the MR Host
+Siemens 7T Terra.X in XA60A.  
+Also tested on Siemens 3T Cima.X on XA61(-SP01)  
+
+
+## Brainmasking, Debias, Denoise
 ![ANTs V2 in XA60A on a 7T Terra.X](doc/OpenRecon_ANTS_V2_FLAIR-CP_FLAIR-UP_DIR-UP_SAG_blur.png)  
-MR Host screenshot from a Siemens 7T Terra.X in XA60A.  
-_Sequence_ Non-selective 3D SPACE.  
-_From left to right_ Original, brain mask (SynthStrip), N4BiasFieldCorrection (ANTs) in brain mask, DenoiseImage (ANTs) in brain mask after N4BiasFieldCorrection.  
-_From top to bottom_ 3D FLAIR with Circular Polarization (CP), 3D FLAIR with Universal Pulses (UP), 3D DIR with UP.  
+_Sequence_: Non-selective 3D SPACE.  
+_From left to right_: Original, brain mask (SynthStrip), N4BiasFieldCorrection (ANTs) in brain mask, DenoiseImage (ANTs) in brain mask after N4BiasFieldCorrection.  
+_From top to bottom_: 3D FLAIR with Circular Polarization (CP), 3D FLAIR with Universal Pulses (UP), 3D DIR with UP.  
 
 [ANTs](https://github.com/ANTsX/ANTs) using [ANTsPy](https://github.com/ANTsX/ANTsPy) in OpenRecon.  
 Brain masking is performed by [SynthStrip](https://surfer.nmr.mgh.harvard.edu/docs/synthstrip/)
 
-Based on https://github.com/benoitberanger/openrecon-template
+
+## SkullStripping
+
+![ANTs V3 in XA60 on a 7T Terra.x](doc/V3_TOF_SkullStripping_MIP_blur.PNG)
+_Sequence_: Angio TOF  
+_From left to right_: Original, SkullStripped using brainmask from Synthstrip, N4BiasFieldCorrection, DenoiseImage  
+_From top to bottom_: SAG MIP, COR MIP, TRA MIP
+
 
 # Features
 
@@ -18,10 +30,17 @@ This OR performs ANTs image operations :
 - DenoiseImage
 - N4BiasFieldCorrection then DenoiseImage (default)
 - DenoiseImage then N4BiasFieldCorrection
+- None (only for brain masking / skull stripping)
+
+Brain mask usage :
+- Apply ANTs in brainmask (keep outside the mask intact)
+- Skull stripping then ANTs (keep only in mask)
+- None (only ANTs, no masking)
 
 There is an option, a checkbox, to **save original images** and intermediate images. (default is _True_)
 
-There is an option, a checkbox, to **apply in brainmask** using SynthStrip. (default is _True_)
+Based on https://github.com/benoitberanger/openrecon-template
+
 
 # Build
 
@@ -59,5 +78,6 @@ Follow guidelines in https://github.com/benoitberanger/openrecon-template
 
 # TODO
 
-Add fields in the UI to tune `N4BiasFieldCorrection` and `DenoiseImage`
+- Add fields in the UI to tune `N4BiasFieldCorrection` and `DenoiseImage`
+- Add fields in the UI to tune the mask (erode ? delate ? ...)
 
