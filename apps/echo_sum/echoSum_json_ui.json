@@ -1,0 +1,114 @@
+{
+  "general": {
+    "name": { "en": "EchoSum" },
+    "version": "1.0.1",
+    "vendor": "ICM",
+    "information": { "en": "Echo Sum" },
+    "id": "EchoSum",
+      "regulatory_information":{
+        "device_trade_name":"EchoSum",
+        "production_identifier":"1.0.1",
+        "manufacturer_address":"https://github.com/benoitberanger/python-openrecon-server",
+        "made_in":"CENIR, ICM, Paris, France",
+        "manufacture_date":"2026-04-24",
+        "material_number":"EchoSum_1.0.1",
+        "gtin":"",
+        "udi":"",
+        "safety_advices":"",
+        "special_operating_instructions":"",
+        "additional_relevant_information":""
+  }
+  },
+  "reconstruction": {
+    "transfer_protocol": {
+      "protocol": "ISMRMRD",
+      "version": "1.4.1"
+    },
+    "port": 9002,
+    "emitter": "image",
+    "injector": "image",
+    "can_process_adjustment_data": false,
+    "can_use_gpu": false,
+    "min_count_required_gpus": 0,
+    "min_required_gpu_memory": 2048,
+    "min_required_memory": 32768,
+    "min_count_required_cpu_cores": 1,
+    "content_qualification_type": "RESEARCH"
+  },
+  "parameters": [
+    {
+      "id": "SaveOriginal",
+      "label": { "en": "Save original images" },
+      "type": "boolean",
+      "information": { "en": "This option will send both original (no suffix) and processed images (with suffix)" },
+      "default": true
+    },
+    {
+      "id": "Debug",
+      "label": { "en": "Enabled Debug mode" },
+      "type": "boolean",
+      "information": { "en": "This option will enabled debug mode, which return only the original images while display infos about them in the logs" },
+      "default": false
+    },
+    {
+      "id": "SelectEcho",
+      "type": "choice",
+      "label": { "en": "Select Echo" },
+      "values": [
+        {
+          "id": "All",
+          "name": { "en": "All" }
+        },
+        {
+          "id": "FirstEcho",
+          "name": { "en": "First Echo" }
+        },
+        {
+          "id": "LastEcho",
+          "name": { "en": "Last Echo" }
+        }
+      ],
+      "default": "All",
+      "information": { "en": "Select echo on which apply the process" }
+    },
+    {
+      "id": "SelectSerie",
+      "type": "choice",
+      "label": { "en": "Select Series" },
+      "values": [
+        {
+          "id": "All",
+          "name": { "en": "All" }
+        },
+        {
+          "id": "FirstSerie",
+          "name": { "en": "First Series" }
+        },
+        {
+          "id": "LastSerie",
+          "name": { "en": "Last Series" }
+        }
+      ],
+      "default": "All",
+      "information": { "en": "Select series on which apply the process" }
+    },
+    {
+      "id": "EchoSumConfig",
+      "type": "choice",
+      "label": { "en": "Echos Summation Config" },
+      "values": [
+        {
+          "id": "SimpleSum",
+          "name": { "en": "Multi-Echo Magnitude Summation" }
+        },
+        {
+          "id": "SoS",
+          "name": { "en": "Sum of Squares" }
+        }
+      ],
+      "default": "SimpleSum",
+      "information": { "en": "Define type of sum on the echos" }
+    }
+    
+  ]
+}

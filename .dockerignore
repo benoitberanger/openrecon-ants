@@ -1,13 +1,15 @@
 # local stuff
 build/
 data/
+docs/
+tests/
 ExampleData/
+build.py
 
 # Git
 .git
 .gitignore
 .gitattributes
-
 
 # CI
 .codeclimate.yml
@@ -16,9 +18,12 @@ ExampleData/
 
 # Docker
 docker-compose.yml
-Dockerfile
+*Dockerfile
 .docker
 .dockerignore
+
+# Makefile
+Makefile
 
 # Byte-compiled / optimized / DLL files
 **/__pycache__/
@@ -61,6 +66,8 @@ htmlcov/
 .cache
 nosetests.xml
 coverage.xml
+test/
+.pytest_cache/
 
 # Translations
 *.mo

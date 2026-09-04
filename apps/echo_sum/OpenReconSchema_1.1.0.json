@@ -253,7 +253,7 @@
           "type": "boolean"
         },
         "can_use_gpu": {
-          "description": "Wheter the image can make use of gpus.",
+          "description": "Whether the image can make use of gpus.",
           "type": "boolean"
         },
         "min_count_required_gpus": {

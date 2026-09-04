@@ -1,9 +1,3 @@
-# intenend for python3
-
-# external modules
-import jsonschema
-
-# builtin modules
 import argparse
 import logging
 import os
@@ -15,10 +9,13 @@ import subprocess
 import re
 import json
 import base64
-import urllib
+# import urllib
+
+import jsonschema
 
 
 def print_section(name: str) -> None:
+    """Display section name"""
     DEBUG_LINE = '#'*40
     print('')
     print(DEBUG_LINE)
@@ -26,42 +23,18 @@ def print_section(name: str) -> None:
     print(DEBUG_LINE)
 
 
-def check_zip() -> None:
+def check_docker_version() -> bool:
+    """
+    Verify that the installed Docker version is compatible with Siemens OpenRecon.
+    (Siemens OpenRecon supports Docker versions up to (but not including) 25)
+
+    Returns
+    -------
+    bool
+        True if the Docker version is compatible, False otherwise.
+    """
     logger = logging.getLogger()
 
-    # zip ?
-    path_git = shutil.which('zip')
-    if path_git:
-        logger.info('`zip` is installed')
-    else:
-        logger.critical('`zip` does not seem to be present in the system')
-        sys.exit(1)
-
-
-def check_git() -> None:
-    logger = logging.getLogger()
-
-    # git ?
-    path_git = shutil.which('git')
-    if path_git:
-        logger.info('`git` is installed')
-    else:
-        logger.critical('`git` does not seem to be present in the system')
-        sys.exit(1)
-
-
-def check_docker() -> None:
-    logger = logging.getLogger()
-
-    # docker ?
-    path_docker = shutil.which('docker')
-    if path_docker:
-        logger.info('`docker` is installed')
-    else:
-        logger.critical('`Docker` does not seem to be present in the system')
-        sys.exit(1)
-
-    # docker version ok ?
     result = subprocess.run(['docker', '--version'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=True)
     version_output = result.stdout.strip()
     logger.debug(version_output)
@@ -69,46 +42,77 @@ def check_docker() -> None:
     matches = re.findall(pattern, version_output)
     if not len(matches):
         logger.critical('Could not find Docker version')
-        sys.exit(1)
+        return False
     docker_version = matches[0].split('.')[0] # 20.21.22 -> 20
     maximum_docker_version = 25
     if int(docker_version) >= maximum_docker_version:
         logger.info(f'Docker version {docker_version} is too high. Siemens allows maximum version: {maximum_docker_version}')
-        sys.exit(1)
+        return False
     logger.info(f'Docker version {docker_version}<={maximum_docker_version} is ok')
+    return True
 
 
-def clone_server(repo_path: str) -> None:
+def check_dependencies(dependencies_name: str) -> None:
+    """
+    Check if the specified dependencies is installed in the system.
+
+    Parameters
+    ----------
+    dependencies_name: str
+        e.g. docker, git, zip
+    """
     logger = logging.getLogger()
 
-    # python-ismrmrd-server : this has the client / server functionality
-    git_adress = 'https://github.com/kspaceKelvin/python-ismrmrd-server'
-    if os.path.exists(repo_path):
-        logger.info(f'Found `python-ismrmrd-server` dir, do not clone it again : {repo_path}')
+    path = shutil.which(dependencies_name)
+    if path:
+        logger.info(f'`{dependencies_name}` is installed')
     else:
-        logger.info('`python-ismrmrd-server` not found, cloning it...')
-        subprocess.run(f'git clone {git_adress} && cd python-ismrmrd-server && git checkout b3012075b050faac32686f0fafea0c10cde861bd', shell=True, check=True)
-
-
-def build_server(repo_dockerfile_path: str) -> None:
-        logger = logging.getLogger()
-
-        result = subprocess.run(['docker', 'images', 'python-ismrmrd-server'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=True)
-        output = result.stdout.strip()
-        if 'python-ismrmrd-server' in output:
-            logger.info('docker image `python-ismrmrd-server` already built')
-            return
-
-        # build docker image for python-ismrmrd-server
-        # this image is the starting point, that will be refined latter
-        logger.info('building docker image `python-ismrmrd-server`')
-        subprocess.run(['docker', 'build', '--tag', 'python-ismrmrd-server', '--file', repo_dockerfile_path, './'], check=True)
+        logger.critical(f'`{dependencies_name}` does not seem to be present in the system')
+        sys.exit(1)
 
 
 def check_target_dir(target_path: str) -> dict:
+    """
+    Check that the application directory contains all required files.
+
+    Expected files:
+        - application.Dockerfile            : Final dockerfile
+        - <process_name>_json_ui.json       : OpenRecon UI parameter definition
+        - OpenReconSchema_*.json            : JSON schema for validation
+        - <process_name>.py (process file)  : main processing script
+    
+    Parameters
+    ----------
+    target_path : str
+        Absolute path to the application directory.
+
+    Returns
+    -------
+    dict with the following structure::
+
+        {
+            'name': {
+                'process': str,   # e.g. 'invertcontrast'
+                'schema':  str,   # e.g. 'OpenReconSchema_1.1.0'
+            },
+            'path': {
+                'process': str,   # path to invertcontrast.py
+                'ui_json': str,   # path to invertcontrast_json_ui.json
+                'schema':  str,   # path to OpenReconSchema_1.1.0.json
+            }
+        }
+    """
     logger = logging.getLogger()
 
-    # files to find
+    # Dockerfile to find
+    dockerfile_path = os.path.join(target_path, 'application.Dockerfile')
+    if os.path.exists(dockerfile_path):
+        logger.info(f'Found application.Dockerfile : {dockerfile_path}')
+    else:
+        logger.error(f'application.Dockerfile not found : {dockerfile_path}')
+        sys.exit(1)
+
+    # JSON files to find
     json_ui_pattern = '*_json_ui.json'
     schema_pattern  = 'OpenReconSchema_*.json'
     json_ui_list = glob.glob(os.path.join(target_path, json_ui_pattern))
@@ -138,6 +142,7 @@ def check_target_dir(target_path: str) -> dict:
         logger.error(f'.py process not found : {process_path}')
         sys.exit(1)
 
+    # create a dict to save the necessary paths and names
     target_data = {
         'name' : {
             'process': process_name,
@@ -152,9 +157,203 @@ def check_target_dir(target_path: str) -> dict:
     pprint.pprint(target_data, sort_dicts=False)
 
     return target_data
-        
+
+
+def build_base_image(dockerfile_path: str) -> None:
+    """
+    Build the base Docker image ``python-openrecon-server``.
+
+    The base image contains all ISMRMRD Python dependencies and serves
+    as the starting point for the application-specific image.
+
+    Parameters
+    ----------
+    dockerfile_path : str
+        Path to the MRD.Dockerfile.
+    """
+    logger = logging.getLogger()
+
+    result = subprocess.run(['docker', 'images', 'python-openrecon-server'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=True)
+    output = result.stdout.strip()
+    if 'python-openrecon-server' in output:
+        logger.info('docker image `python-openrecon-server` already built')
+        return
+
+    # build docker image for python-openrecon-server
+    # this image is the starting point, that will be refined later
+    logger.info('building docker image `python-openrecon-server`')
+    subprocess.run(['docker', 'build', '--tag', 'python-openrecon-server', '--file', dockerfile_path, './'], check=True)
+
+
+def check_json_format(json_content: dict, target_data: dict) -> bool:
+    """
+    Validate JSON object for the application against the JSON schema reference
+
+    Parameters
+    ----------
+    json_content : any
+        Parsed JSON UI content.
+    target_data : dict
+        Target directory data as returned by check_target_dir().
+
+    Returns
+    -------
+    bool
+        True if the JSON is valid against the schema, False otherwise.
+    """
+    logger = logging.getLogger()
+
+    logger.info(f"load JSON Schema : {target_data['path']['schema']}")
+    with open(file=target_data['path']['schema'], mode='r') as fid:
+        schema_content = json.load(fp=fid)
+
+    validator = jsonschema.Draft7Validator(schema=schema_content)
+
+    errors = list(validator.iter_errors(instance=json_content))
+    if errors:
+        logger.error('our Json vs. Schema errors :')
+        for error in errors:
+                logger.error(error)
+        return False
+    
+    logger.info(f'No error in out JSON compared against the Schema')
+    return True
+
+
+def prepare_infos(json_content, build_path: str) -> dict:
+    """
+    Prepare output files names (Dockerfile, .tar, .zip)
+
+    Parameters
+    ----------
+    json_content : any
+        Parsed JSON UI content.
+    build_path : str
+        Absolute path to the build output directory.
+
+    Returns
+    -------
+    dict with the following structure::
+
+        {
+            'info': {
+                'version': str,
+                'vendor':  str,
+                'name':    str,
+            },
+            'name': {
+                'docker': str,   # e.g. 'OpenRecon_ICM_InvertContrast:V1.0.0'
+                'base':   str,   # e.g. 'OpenRecon_ICM_InvertContrast_V1.0.0'
+            },
+            'path': {
+                'docker': str,   # path to generated .Dockerfile
+                'tar':    str,   # path to output .tar
+                'pdf':    str,   # path to output .pdf
+                'zip':    str,   # path to output .zip
+            }
+        }
+    """
+    logger = logging.getLogger()
+
+    # prep build dir
+    if os.path.exists(build_path):
+        logger.info(f'`build` dir found : {build_path}')
+    else:
+        if not os.path.exists("builds"):
+            os.mkdir("builds")
+        os.mkdir(build_path)
+        logger.info(f'`build` dir created : {build_path}')
+    
+    version = json_content['general']['version']
+    vendor  = json_content['general']['vendor' ]
+    name    = json_content['general']['id'     ]
+
+    # other file/path
+    base_name = f'OpenRecon_{vendor}_{name}_V{version}'
+
+    build_data = {
+        'info': {
+            'version'   : version,
+            'vendor'    : vendor,
+            'name'      : name
+        },
+        'name': {
+            'docker': f'OpenRecon_{vendor}_{name}:V{version}'.lower(),
+            'base'  : f'OpenRecon_{vendor}_{name}_V{version}'
+        },
+        'path': {
+            'docker' : os.path.join(build_path, f"{base_name}.Dockerfile"),
+            'tar'    : os.path.join(build_path, f"{base_name}.tar"),
+            'pdf'    : os.path.join(build_path, f"{base_name}.pdf"),
+            'zip'    : os.path.join(build_path, f"{base_name}.zip")
+        }
+    }
+
+    pprint.pprint(build_data, sort_dicts=False)
+
+    return build_data
+
+
+def write_dockerfile(json_content, cmdline: str, docker_path: str, build_data: dict) -> None:
+    """
+    Generate the final application Dockerfile for OpenRecon.
+
+    Copies the base application Dockerfile and appends two directives:
+
+    - ``CMD`` — the server launch command line.
+    - ``LABEL`` — the OpenRecon metadata label, containing the full
+      JSON UI content encoded as Base64 (required by Siemens OpenRecon).
+
+    Parameters
+    ----------
+    json_content : any
+        Parsed JSON UI content to embed in the LABEL directive.
+    cmdline : str
+        Shell command used to start the MRD server inside the container.
+    docker_path : str
+        Path to the source ``application.Dockerfile`` in the app directory.
+    build_data : dict
+        Dict containing the path for the generated Dockerfile in the build 
+        directory, and the name and version of the application.
+    """
+    logger = logging.getLogger()
+
+    # encoded the json content in base 64
+    encoded_json_content = base64.b64encode((json.dumps(obj=json_content,indent=2)).encode('utf-8')).decode('utf-8')
+
+    # write the Dockerfile content
+    logger.info(f"Write `build` Dockerfile : {build_data['path']['docker']}")
+    dockerfile_content = [
+        f'',
+        f'# Version',
+        f'LABEL "{build_data['info']['name']}_version"="{build_data['info']['version']}"',
+        f'',
+        f'# CMD line',
+        f'CMD [ "/bin/bash", "-c", "/usr/sbin/ldconfig && {cmdline}" ] ',
+        f'',
+        f'# mandatory for OpenRecon (see OR documentation)',
+        f'LABEL "com.siemens-healthineers.magneticresonance.openrecon.metadata:1.1.0"="{encoded_json_content}"',
+        f'',
+    ]
+    dockerfile_content = "\n".join(dockerfile_content)
+
+    shutil.copy(docker_path, build_data['path']['docker'])
+
+    with open(file=build_data['path']['docker'], mode='a') as fid:
+        fid.writelines(dockerfile_content)
+
 
 def create_pdf(file_path: str, lines_of_text: list[str]) -> None:
+    """
+    Generate a minimal pdf with information about the app
+
+    Parameters
+    ----------
+    file_path : str
+        Output path for the generated PDF file.
+    lines_of_text : list[str]
+        Lines of text to write in the PDF file.
+    """
     pdf_header = b'%PDF-1.4\n'
     
     objects = []
@@ -191,17 +390,61 @@ def create_pdf(file_path: str, lines_of_text: list[str]) -> None:
         f.write(trailer)
 
 
+def packaging_OR_image(build_data: dict, build_path: str, pdf_file: str | None) -> None:
+    """
+    Export the OpenRecon Docker image and package it as a .zip file.
+
+    Performs three steps in order:
+    1. Save the Docker image to a ``.tar`` archive via ``docker save``.
+    2. Generate a ``.pdf`` documentation file with vendor/name/version info.
+    3. Bundle the ``.tar`` and ``.pdf`` into a single ``.zip`` file.
+
+    Parameters
+    ----------
+    build_data: dict
+        Build data as returned by prepare_infos().
+    build_path : str
+        Absolute path to the build output directory.
+    pdf_file: str or None
+        Path the a pdf file.
+    """
+    logger = logging.getLogger()
+
+    cwd = os.getcwd()
+    # build_path = os.path.join(cwd, 'builds')
+
+    # save docker image in a .tar
+    logger.info(f"(1/2) saving image `{build_data['name']['docker']}` in a .tar {build_data['path']['tar']}")
+    subprocess.run(['docker', 'save', '-o', build_data['path']['tar'], build_data['name']['docker']], check=True)
+    logger.info(f"(2/2) saving image DONE")
+
+    if pdf_file:
+        pdf_path = os.path.join(cwd, pdf_file)
+
+    if (not pdf_file) or (not os.path.exists(pdf_path)):
+        logging.info(f"PDF file {pdf_file} not found. Generation of a minimal PDF.")
+        pdf_path = build_data['path']['pdf']
+        # generate PDF
+        lines = [
+            f'vendor={build_data['info']['vendor']}',
+            f'name={build_data['info']['name']}',
+            f'version={build_data['info']['version']}',
+        ]
+        logger.info(f"write PDF file : {build_data['path']['pdf']}")
+        create_pdf(file_path=build_data['path']['pdf'], lines_of_text=lines)
+
+    # save everything in a ZIP file
+    logger.info(f"(1/2) zip all files : {build_data['path']['zip']}")
+    subprocess.run(['zip', '-j', build_data['name']['base']+'.zip', build_data['path']['tar'], pdf_path], check=True, cwd=build_path)
+    logger.info(f"(2/2) zip all files DONE")
+
+
 def main(args: argparse.Namespace):
 
     #############
     ### setup ###
     #############
 
-    # setup logging
-    logging.basicConfig(
-        level=logging.DEBUG,
-        format=f"%(levelname)8s:%(funcName)15s: %(message)s",
-    )
     logger = logging.getLogger()
 
     print_section('START')
@@ -210,164 +453,64 @@ def main(args: argparse.Namespace):
     cwd = os.getcwd()
     logger.info(f'Current working directory : {cwd}')
 
-
     # check if all system programs are here
     print_section('SYSTEM DEPENDENCIES')
-    check_zip()
-    check_git()
-    check_docker()
+    check_dependencies('zip')
+    check_dependencies('git')
+    check_dependencies('docker')
+    if not check_docker_version():
+        sys.exit(1)
 
-    # python-ismrmrd-server : clone & build docker image
-    print_section('CLONE & BUILD SERVER')
-    repo_path            = os.path.join(cwd, 'python-ismrmrd-server')
-    repo_dockerfile_path = os.path.join(repo_path, 'docker', 'Dockerfile')
-    clone_server(repo_path)
-    build_server(repo_dockerfile_path)
-
-    # target dir
-    target_path = os.path.join(cwd, args.dirname)
+    # check if the necessary file are present in the target dir
+    target_path = os.path.join(cwd, 'apps/', args.dirname)
     print_section(f'Check `target` dir and its content : {target_path}')
     target_data = check_target_dir(target_path)
+
 
     #############
     ### build ###
     #############
 
+    # Build base docker image with ISMRD
+    print_section('BUILD SERVER')
+    dockerfile_path = os.path.join(cwd, 'MRD.Dockerfile')
+    build_base_image(dockerfile_path)
+
     print_section('BUILD')
     logger.warning('From now on, all steps will not have a "skip if already done" feature')
 
-    # download the DeepLearning weights
-    weights_name = 'synthstrip.1.pt'
-    weights_url = 'https://surfer.nmr.mgh.harvard.edu/docs/synthstrip/requirements/synthstrip.1.pt'
-    weights_path = os.path.join(cwd, 'app', weights_name)
-    if os.path.exists(weights_path):
-        logger.info(f'Weigths `{weights_name}` in `app` dir : {weights_path}')
-    else:
-        logger.info(f'Download weigths `{weights_name}` in `app` dir : {weights_path}')
-        urllib.request.urlretrieve(weights_url, weights_path)
-
     # prep build dir
-    build_path = os.path.join(cwd, 'build')
-    if os.path.exists(build_path):
-        logger.info(f'`build` dir found : {build_path}')
-    else:
-        os.mkdir(build_path)
-        logger.info(f'`build` dir created : {build_path}')
-
-    # prep some paths
-    build_data = {
-        'name': {
-            'docker': '',
-            'base'  : '',
-        },
-        'path': {
-            'pdf'   : ''
-        }
-    }
-    pprint.pprint(build_data, sort_dicts=False)
-
-    # copy files in the `build` dir
-    to_copy = [
-        # [src dst]
-    ]
-    for src_dst in to_copy:
-        logger.info(f'copy : SRC={src_dst[0]} DST={src_dst[1]}')
-        shutil.copy(src=src_dst[0],dst=src_dst[1])
+    build_path = os.path.join(cwd, 'builds', args.dirname)
 
     # load JSON UI
     logger.info(f"load UI JSON content : {target_data['path']['ui_json']}")
     with open(target_data['path']['ui_json'], 'r') as fid:
         json_content = json.load(fid)
-
-    # prep info
-    cmdline  = f'CMD [ "python3", "/opt/code/python-ismrmrd-server/main.py", "-v", "-H=0.0.0.0", "-p=9002", "-l=/tmp/python-ismrmrd-server.log", "--defaultConfig={target_data['name']['process']}"]'
-    version                         = json_content['general']['version']
-    vendor                          = json_content['general']['vendor' ]
-    name                            = json_content['general']['id'     ]
-
-    # other file/path
-    build_data['name']['docker'] = f'OpenRecon_{vendor}_{name}:V{version}'.lower()
-    build_data['name']['base'  ] = f'OpenRecon_{vendor}_{name}_V{version}'
-    build_data['path']['docker'] = os.path.join(build_path, f"{build_data['name']['base']}.Dockerfile")
-    build_data['path']['tar'   ] = os.path.join(build_path, f"{build_data['name']['base']}.tar")
-    build_data['path']['zip'   ] = os.path.join(build_path, f"{build_data['name']['base']}.zip")
-    build_data['path']['pdf'   ] = os.path.join(build_path, f"{build_data['name']['base']}.pdf")
-    pprint.pprint(build_data, sort_dicts=False)
-
-    # load JSON Schema, to check if our updated JSON is ok
-    logger.info(f"load JSON Schema : {target_data['path']['schema']}")
-    with open(file=target_data['path']['schema'], mode='r') as fid:
-        schema_content = json.load(fp=fid)
-    validator = jsonschema.Draft7Validator(schema=schema_content)
-    errors = list(validator.iter_errors(instance=json_content))
-    if errors:
-        logger.error('our Json vs. Schema errors :')
-        for error in errors:
-                logger.error(error)
-        sys.exit(1)
-    logger.info(f'No error in out JSON compared against the Schema')
-
-    # write the updated json in the `build` dir
-    encoded_json_content = base64.b64encode((json.dumps(obj=json_content,indent=2)).encode('utf-8')).decode('utf-8')
     
-    # write the Dockerfile content
-    logger.info(f"Write `build` Dockerfile : {build_data['path']['docker']}")
-    dockerfile_content = [
-        f'# import python-ismrmrd-server as starting point',
-        f'FROM python-ismrmrd-server AS base',
-        f'',
-        f'# Python modules installation',
-        f'RUN apt-get update && apt-get install -y gcc # surfa needs gcc to compile',
-        f'RUN pip3 --no-cache-dir install antspyx surfa',
-        f'RUN pip3 --no-cache-dir install torch --index-url https://download.pytorch.org/whl/cpu # CPU version of pytorch',
-        f'',
-        f'# Cleanup files not required after installation',
-        f'RUN apt-get clean && \\',
-        f'    rm -rf /var/lib/apt/lists/* && \\',
-        f'    rm -rf /root/.cach/pip',
-        f'',
-        f'# copy the .pt file (weights)',
-        f'COPY {os.path.relpath(weights_path, cwd)}  /opt/code/python-ismrmrd-server',
-        f'',
-        f'# Copy base image after installation, to reduce finale image size',
-        f'FROM base AS runtime',
-        f'',
-        f'# new CMD line',
-        f'{cmdline}',
-        f'',
-        f'# mandatory for OpenRecon (see OR documentation)',
-        f'LABEL "com.siemens-healthineers.magneticresonance.openrecon.metadata:1.1.0"="{encoded_json_content}"',
-        f'',
-        f'# copy the .py module',
-        f'COPY {os.path.relpath(target_data['path']['process'], cwd)}  /opt/code/python-ismrmrd-server',
-        f'',
-    ]
-    dockerfile_content = "\n".join(dockerfile_content)
-    with open(file=build_data['path']['docker'], mode='w') as fid:
-        fid.writelines(dockerfile_content)
-        
+    # Check if our updated JSON is ok
+    if not check_json_format(json_content, target_data):
+        sys.exit(1)
+
+    # prepare infos 
+    # prepare the commande line for the Dockerfile
+    if args.debug:
+        cmdline  = f'exec python3 main.py -v --debug -H=0.0.0.0 -p=9002 -l=/tmp/python-openrecon-server.log --config={target_data['name']['process']} --dirname={args.dirname} --savedata --savedataFolder /tmp/or'
+    else:
+        cmdline  = f'exec python3 main.py -v -H=0.0.0.0 -p=9002 -l=/tmp/python-openrecon-server.log --config={target_data['name']['process']} --dirname={args.dirname}'
+
+    build_data = prepare_infos(json_content, build_path)
+
+    # Write the Dockerfile
+    app_docker_path = os.path.join(target_path, 'application.Dockerfile')
+    write_dockerfile(json_content, cmdline, app_docker_path, build_data)
+
     # build docker image
     logger.info(f"building docker image `{build_data['name']['docker']}` from Docker file {build_data['path']['docker']}")
     subprocess.run(['docker', 'build', '--tag', build_data['name']['docker'], '--file', build_data['path']['docker'], cwd], check=True)
 
-    # save docker image in a .tar
-    logger.info(f"(1/2) saving image `{build_data['name']['docker']}` in a .tar {build_data['path']['tar']}")
-    subprocess.run(['docker', 'save', '-o', build_data['path']['tar'], build_data['name']['docker']], check=True)
-    logger.info(f"(2/2) saving image DONE")
-
-    # generate PDF
-    lines = [
-        f'vendor={vendor}',
-        f'name={name}',
-        f'version={version}',
-    ]
-    logger.info(f"write PDF file : {build_data['path']['pdf']}")
-    create_pdf(file_path=build_data['path']['pdf'], lines_of_text=lines)
-
-    # save everything in a ZIP file
-    logger.info(f"(1/2) zip all files : {build_data['path']['zip']}")
-    subprocess.run(['zip', build_data['name']['base']+'.zip', build_data['name']['base']+'.tar', build_data['name']['base']+'.pdf'], check=True, cwd=build_path)
-    logger.info(f"(2/2) zip all files DONE")
+    # generate a pdf documentation and save the docker image and its doc in a .zip
+    if not args.nopackage : 
+        packaging_OR_image(build_data, build_path, args.pdf_file)
 
     # END
     print_section('All done !')
@@ -376,23 +519,37 @@ def main(args: argparse.Namespace):
 
 if __name__ == '__main__':
 
+    # setup logging
+    logging.basicConfig(
+        level=logging.DEBUG,
+        format=f"%(levelname)8s:%(funcName)15s: %(message)s",
+    )
+
     parser = argparse.ArgumentParser(
         prog            = 'build',
         description     = 'Build OpenRecon app',
         formatter_class = argparse.ArgumentDefaultsHelpFormatter,
     )
 
-    def dir_path(input_dir):
-        if os.path.isdir(input_dir):
-            return input_dir
-        else:
-            raise argparse.ArgumentTypeError(f"Not a valid path : {input_dir}")
+    def dir_path(input_dir: str) -> bool:
+        actual_dir = os.path.join('apps/', input_dir)
+        if os.path.basename(actual_dir) != input_dir:
+            raise ValueError(f"Not a valid path : {input_dir} must not be a nested path")
+        
+        if not os.path.isdir(actual_dir):
+            raise argparse.ArgumentTypeError(f"Not a valid path : {actual_dir}")
+        
+        return input_dir
+
     parser.add_argument(
         '--dirname',
         type    = dir_path,
-        help    = 'Application directory name. ex: `demo-i2i`, `app`',
-        default = 'app'
+        help    = 'Application directory name in apps/ directory. ex: `demo`, `echo_sum`',
+        default = 'demo'
     )
+    parser.add_argument('-p', '--pdf-file', type=str,              help='PDF file to put in the app .zip file. If None, generate a minimal one.', default=None)
+    parser.add_argument('-D', '--debug',    action='store_true',   help='Build the server in debug mode')
+    parser.add_argument('--nopackage',      action='store_true',   help='Do not save the docker image in a .zip file')
 
     args = parser.parse_args()
 

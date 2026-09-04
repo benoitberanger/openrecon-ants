@@ -1,0 +1,58 @@
+[build-system]
+build-backend = "setuptools.build_meta"
+requires = ["setuptools>=68"]
+
+[project]
+name = "python-openrecon-server"
+version = "0.1.0"
+description = "Python template to build MRD image processing pipelines for Siemens OpenRecon."
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [
+    { name = "Solenne Vincens", email = "solenne.vincens@icm-institute.org" },
+    { name = "Benoit Beranger", email = "benoit.beranger@icm-institute.org" },
+]
+
+# Runtime dependencies for the build script
+dependencies = [
+    "jsonschema==4.26.0",
+]
+
+[project.optional-dependencies]
+# pinned to match the base image built by MRD.Dockerfile
+# so that local development, tests, and the packaged OpenRecon container
+# behave the same way.
+dev = [
+    "numpy==2.4.4",
+    "h5py==3.16.0",
+    "ismrmrd==1.14.2",
+    "pydicom==3.0.2",
+    "nibabel==5.4.2",
+    "psutil==7.2.2",
+    "python-dateutil",
+]
+
+# Everything needed to run the test suite locally (see "Running the test
+# suite" in README.md). matplotlib is only required if your processing
+# module uses it (e.g. for colormaps), keep/drop as needed.
+test = [
+    "pytest==9.1.1",
+]
+
+# Everything needed for the documentation
+docs = [
+    "sphinx",
+    "sphinx-rtd-theme",
+    "myst-parser",
+    "sphinxcontrib-mermaid",
+]
+
+[tool.setuptools.packages.find]
+# "echo_sum" is intentionally excluded: it is an example deployment target, 
+# not a library package of this template.
+include = ["server*", "utils*", "converter*", "apps*"]
+
+[tool.codespell]
+skip = '*.js,*.ts,*.css,*.svg,./test'
