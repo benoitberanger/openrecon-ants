@@ -1,22 +1,22 @@
 # --- Parameters for run docker -----------------------------------------------
-OPENRECON_IMAGE=openrecon_icm_invertcontrast
-VERSION=v1.0.4
+OPENRECON_IMAGE=openrecon_icm_ants
+VERSION=v4.0.0
 
 # --- Default parameters for server (main.py) ---------------------------------
-CONFIG      ?= invertContrast
-APP_DIR     ?= demo
-LOGFILE		=test/test.log
+CONFIG  ?= ants_synthstrip # name of the python file (.py), which contains `process_image` function
+APP_DIR ?= ants
+LOGFILE  = test/test.log
 
 # --- Parameters for local test -----------------------------------------------
 IN_DIR=data/in
 OUT_DIR=data/out
 
 
-DATASET_NAME=test
+# DATASET_NAME=test
 # DATASET_NAME=bold_CMRR_10meas_mp_2026-05-20-164300_68
 # DATASET_NAME=bold_CMRR_sbref_10meas_mp_2026-05-20-163940_94 (fucked up)
 # DATASET_NAME=gre_1e_m__dis2dANDunfiltered_2026-05-20-161554_93
-# DATASET_NAME=gre_1e_m_2026-05-20-134749_57
+DATASET_NAME=gre_1e_m_2026-05-20-134749_57
 # DATASET_NAME=gre_1e_m_uncomb_2026-05-20-165810_25
 # DATASET_NAME=gre_1e_mp_2026-05-20-135006_62
 # DATASET_NAME=gre_2e_mp__dis2dANDunfiltered__3measMultiSerOFF_2026-05-20-162625_34
@@ -38,11 +38,11 @@ all: build run
 
 build:
 	@echo "Building Server Docker Image"
-	python build.py
+	python build.py --dirname ${APP_DIR}
 
 build-nopackage:
 	@echo "Building Server Docker Image without packaging step"
-	python build.py --nopackage
+	python build.py --dirname ${APP_DIR} --nopackage
 
 run:
 	@echo "Starting the server in docker"
@@ -54,7 +54,7 @@ run:
 
 server:
 	@echo "Starting server locally"
-	python main.py -v --config ${CONFIG} --dirname $(APP_DIR) $(if $(LOGFILE),-l $(LOGFILE),)
+	python main.py -v --config ${CONFIG} --dirname ${APP_DIR} $(if $(LOGFILE),-l $(LOGFILE),)
 
 client:
 	@echo "Starting Client"
