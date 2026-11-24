@@ -54,7 +54,7 @@ run:
 
 server:
 	@echo "Starting server locally"
-	python main.py -v --config ${CONFIG} --dirname ${APP_DIR} $(if $(LOGFILE),-l $(LOGFILE),)
+	python main.py -v --config ${CONFIG} --dirname ${APP_DIR} $(if ${LOGFILE},-l ${LOGFILE},)
 
 client:
 	@echo "Starting Client"
